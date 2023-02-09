@@ -108,10 +108,32 @@ def parse_primers(primer_results, header):
     target_name = header[:30].split(" ")[0].strip()
     # Parse the primers
     i = 0
-    while i < primer_results['PRIMER_PAIR_NUM_RETURNED']:
-        left_primer = primer_results['PRIMER_LEFT_' + str(i) + '_SEQUENCE']
-        right_primer = primer_results['PRIMER_RIGHT_' + str(i) + '_SEQUENCE']       
-        primers.append({'header': header, 'left_primer_name': target_name + "_" + str(i) + "F",'left_primer': left_primer, 'right_primer_name': target_name + "_" + str(i) + "R", 'right_primer': right_primer})
+    while i < primer_results['PRIMER_PAIR_NUM_RETURNED']:       
+        primers.append({'header': header, 
+                        'left_primer_name': target_name + "_" + str(i) + "F",
+                        'left_primer_sequence': primer_results['PRIMER_LEFT_' + str(i) + '_SEQUENCE'], 
+                        'right_primer_name': target_name + "_" + str(i) + "R", 
+                        'right_primer_sequence': primer_results['PRIMER_RIGHT_' + str(i) + '_SEQUENCE'],
+                        'left position': primer_results['PRIMER_LEFT_' + str(i)], 
+                        'right position': primer_results['PRIMER_RIGHT_' + str(i)], 
+                        'product size': primer_results['PRIMER_PAIR_' + str(i) + '_PRODUCT_SIZE'],
+                        'left_Tm' : primer_results['PRIMER_LEFT_' + str(i) + '_TM'],
+                        'right_Tm' : primer_results['PRIMER_RIGHT_' + str(i) + '_TM'],
+                        'left_GC' : primer_results['PRIMER_LEFT_' + str(i) + '_GC_PERCENT'],
+                        'right_GC' : primer_results['PRIMER_RIGHT_' + str(i) + '_GC_PERCENT'],
+                        'left_SELF_ANY_TH' : primer_results['PRIMER_LEFT_' + str(i) + '_SELF_ANY_TH'],
+                        'right_SELF_ANY_TH' : primer_results['PRIMER_RIGHT_' + str(i) + '_SELF_ANY_TH'],
+                        'left_SELF_END_TH' : primer_results['PRIMER_LEFT_' + str(i) + '_SELF_END_TH'],
+                        'right_SELF_END_TH' : primer_results['PRIMER_RIGHT_' + str(i) + '_SELF_END_TH'],
+                        'left_HAIRPIN_TH' : primer_results['PRIMER_LEFT_' + str(i) + '_HAIRPIN_TH'],
+                        'right_HAIRPIN_TH' : primer_results['PRIMER_RIGHT_' + str(i) + '_HAIRPIN_TH'],
+                        'left_END_STABILITY' : primer_results['PRIMER_LEFT_' + str(i) + '_END_STABILITY'],
+                        'right_END_STABILITY' : primer_results['PRIMER_RIGHT_' + str(i) + '_END_STABILITY'],
+                        'left_PENALTY' : primer_results['PRIMER_LEFT_' + str(i) + '_PENALTY'],
+                        'right_PENALTY' : primer_results['PRIMER_RIGHT_' + str(i) + '_PENALTY'],
+                        'pair_PENALTY' : primer_results['PRIMER_PAIR_' + str(i) + '_PENALTY'],
+                        'pair_COMPL_ANY_TH' : primer_results['PRIMER_PAIR_' + str(i) + '_COMPL_ANY_TH'],
+                        'pair_COMPL_END_TH' : primer_results['PRIMER_PAIR_' + str(i) + '_COMPL_END_TH'],})
         i = i+1
     return(primers)
 
