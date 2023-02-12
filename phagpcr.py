@@ -1,9 +1,13 @@
+import subprocess
 import sys
 import os
 import os.path
 import pandas as pd
 import primer3
 from argparse import ArgumentParser
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio import SeqIO
 
 primer3_params = {
     # Basic parameters
@@ -105,7 +109,7 @@ def get_primers(header, seq, primer3_params):
     return primer_results
 
 def parse_primers(primer_results, header):
-    target_name = header[:30].split(" ")[0].strip()
+    target_name = header[:50].split(" ")[0].strip()
     # Parse the primers
     i = 0
     while i < primer_results['PRIMER_PAIR_NUM_RETURNED']:       
@@ -135,9 +139,26 @@ def parse_primers(primer_results, header):
                         'pair_COMPL_ANY_TH' : primer_results['PRIMER_PAIR_' + str(i) + '_COMPL_ANY_TH'],
                         'pair_COMPL_END_TH' : primer_results['PRIMER_PAIR_' + str(i) + '_COMPL_END_TH'],})
         i = i+1
-    return(primers)
+    primers_df = pd.DataFrame(primers)
+    return(primers_df)
+
+def df_to_fasta(df, output_dir):
+    records = []
+    for index, row in df.iterrows():
+        seq_record = SeqRecord(Seq(row['left_primer_sequence']),
+                               id=row['left_primer_name'],
+                               description="")
+        records.append(seq_record)
+        seq_record = SeqRecord(Seq(row['right_primer_sequence']),
+                               id=row['right_primer_name'],
+                               description="")
+        records.append(seq_record)
+    with open(output_dir + "/all_primers.fna", "w") as handle:
+        SeqIO.write(records, handle, 'fasta')
 
 #def run_mfe(primer_fasta_file, blast_db, human_genome)
+
+
 
 if __name__ == '__main__':
     
@@ -162,20 +183,24 @@ if __name__ == '__main__':
     
     # Type 1: supervised design providing target
     if runtype == 1:
-        print("Run type for primer design: 1 = supervised design providing target")
+        print("\nRun type for primer design: 1 = supervised design providing target")
         print("--------------------------------------------------------")
         print("Step 1 - select all primers against target using Primer3")
         print("--------------------------------------------------------")
         primers=[]
         for header, seq in sequences.items():
             primer_results = get_primers(header, seq, primer3_params)         
-            primer_summary = parse_primers(primer_results, header)
-        all_primers = pd.DataFrame(primer_summary)
+            all_primers = parse_primers(primer_results, header)
+        
         # create prefiltered primers file
         all_primers.to_csv(output_dir + '/prefiltered_primers_file.csv', index=False)
-        print('Prefiltered primers stored in:', output_dir + '/prefiltered_primers_file.csv')
+        print('\nPrefiltered primers stored in:', output_dir + '/prefiltered_primers_file.csv')
+        
+        # create multifasta file with all predicted priners
+        df_to_fasta(all_primers, output_dir)
+        print('Prefiltered primers in fasta format stored in:', output_dir + '/all_primers.fna')
  
-        print("--------------------------------------------------------")               
+        print("\n--------------------------------------------------------")               
         print("Step 2 - test specificity of primers using MFEprimer")
         print("--------------------------------------------------------")
         if blast_db == True:
@@ -189,10 +214,11 @@ if __name__ == '__main__':
         if (blast_db == True) | (human_genome == "yes"):
             ## run mfe
             print("run MFE")
+            
         else:
             print("Specificity of primers using MFEprimer not required")
             
-        print("--------------------------------------------------------")
+        print("\n--------------------------------------------------------")
         print("Step 3 - summarising all results")
         print("--------------------------------------------------------")       
         
