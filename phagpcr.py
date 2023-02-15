@@ -43,9 +43,7 @@ def parse_args():
                         help='Minimum Tm to report primers-template matches screened with MFEprimer')
     return parser.parse_args()
 
-def update_primer3(seq, tm, primer_size, kit):
-    start = 150
-    included_length = len(seq)-(start*2)
+def update_primer3(tm, primer_size, kit):
     primer3_params = {
         # Basic parameters
         'PRIMER_OPT_SIZE' : primer_size, 
@@ -61,7 +59,6 @@ def update_primer3(seq, tm, primer_size, kit):
         # Product
         'PRIMER_PRODUCT_SIZE_RANGE' : [[100,150],[150,175],[175,200],[200,225],[225,250],[250,275],[275,300]],
         'PRIMER_PRODUCT_OPT_SIZE' : 150,
-        'SEQUENCE_INCLUDED_REGION' : [start,included_length],
         # Advanced metrics
         'PRIMER_TM_FORMULA' : 1,    # SantaLucia 1988
         'PRIMER_SALT_MONOVALENT' : 50.0,
@@ -114,11 +111,21 @@ def readfile(fasta_file):
 
 def get_primers(header, seq, primer3_params):
     print("3. Designing primers for ", header)
+    # if sequence is equal or greater to 500 bp, define a subregion to design primers (=minimum 200bp) 
+    if len(seq) >= 500:
+        start = 150
+        region_length = len(seq) - (start*2)
+    # sequence is too short to define a subregion, use full sequence instead
+    else:
+        start = 0
+        region_length = len(seq)
+        
     primers = []
     # Set the Primer3 sequence arguments
     primer3_input = {
         'SEQUENCE_ID': header,
         'SEQUENCE_TEMPLATE': seq,
+        'SEQUENCE_INCLUDED_REGION' : [start,region_length],
     }
     
     # Run the Primer3 design process - return a dictionary of primer results
@@ -224,7 +231,7 @@ if __name__ == '__main__':
         print("--------------------------------------------------------")
         primers=[]
         for header, seq in sequences.items():
-            primer3_params = update_primer3(seq, tm, primer_size, kit)
+            primer3_params = update_primer3(tm, primer_size, kit)
             primer_results = get_primers(header, seq, primer3_params)         
             all_primers = parse_primers(primer_results, header)
         
