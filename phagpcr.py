@@ -39,7 +39,7 @@ primer3_params = {
     'PRIMER_PAIR_MAX_COMPL_ANY' : 12,
     'PRIMER_PAIR_MAX_COMPL_END' : 8,
     # Output
-    'PRIMER_NUM_RETURN' : 4,
+    'PRIMER_NUM_RETURN' : 1,
 }
 
 def parse_args():
@@ -55,7 +55,7 @@ def parse_args():
                         help='BLAST database for searching the primers (optional)')
     parser.add_argument('-H', '--human_genome', 
                         type=bool, default=False, required=False, 
-                        help='Screen the primers against the human genome - verison hg38 (True or False)(optional)')
+                        help='Screen the primers against the human genome - version hg38 (True or False)(optional)')
     parser.add_argument('-s', '--sequences_dir', 
                         type=str, default=None, required=False, 
                         help='Directory containing sequences for screening against the primers (optional)')
@@ -156,9 +156,23 @@ def df_to_fasta(df, output_dir):
     with open(output_dir + "/all_primers.fna", "w") as handle:
         SeqIO.write(records, handle, 'fasta')
 
-#def run_mfe(primer_fasta_file, blast_db, human_genome)
+def run_mfe_index(db):
+    subprocess.call('mfeprimer index -i {}'.format(db), shell=True)
 
+def run_mfe(primers, db, output_dir, suffix, tm):
+    print("Screening for all features and specificity against Blast database: " + str(db))
+    print("Running MFEprimer full analysis...\n")
+    subprocess.call('mfeprimer -i {} -d {} -o {}/mfe_results_{}.txt -S 500 -t {} -j'.format(primers, db, output_dir, suffix, tm), shell=True)
+    
+def run_mfe_dimers(primers, output_dir, suffix):
+    print("Screening for dimers.")
+    print("Running MFEprimer dimers...")
+    subprocess.call('mfeprimer dimers -i {} --dg 10 -o {}/mfe_dimer_results_{}.txt -S 500 -t {} -j'.format(primers, output_dir, suffix), shell=True)
 
+def run_mfe_spec(primers, db, output_dir, suffix, tm):
+    print("Screening for specificity against Blast database: " + str(db))
+    print("Running MFEprimer specificity...")
+    subprocess.call('mfeprimer spec -i {} -d {} -o {}/mfe_spec_results_{}.txt -S 500 -t {} -j'.format(primers, db, output_dir, suffix, tm), shell=True)
 
 if __name__ == '__main__':
     
@@ -194,28 +208,26 @@ if __name__ == '__main__':
         
         # create prefiltered primers file
         all_primers.to_csv(output_dir + '/prefiltered_primers_file.csv', index=False)
-        print('\nPrefiltered primers stored in:', output_dir + '/prefiltered_primers_file.csv')
+        print('\nPrefiltered primers stored in: ', output_dir + '/prefiltered_primers_file.csv')
         
         # create multifasta file with all predicted priners
         df_to_fasta(all_primers, output_dir)
-        print('Prefiltered primers in fasta format stored in:', output_dir + '/all_primers.fna')
+        print('Prefiltered primers in fasta format stored in: ', output_dir + '/all_primers.fna')
  
         print("\n--------------------------------------------------------")               
         print("Step 2 - test specificity of primers using MFEprimer")
         print("--------------------------------------------------------")
-        if blast_db == True:
-            print("Screening against Blast database:" + blast_db)
+        if blast_db != None:
+            ## by default, mfeprimer_index will check if the indexing has already been performed before proceeding
+            run_mfe_index(blast_db)
+            run_mfe(output_dir + '/all_primers.fna',blast_db,output_dir,'blastdb', 45)
         else:
             print("No Blast database provided")    
-        if human_genome == "yes":
-            print("Screening against Human Genome version Hg38")
+        if human_genome == True:
+            run_mfe_spec(output_dir + '/all_primers.fna','/data/db/blastdb/hg38/GCA_000001405.29_GRCh38.p14_genomic.fna',output_dir,'hg38', 40)
         else:
             print("No Human Genome screening required")
-        if (blast_db == True) | (human_genome == "yes"):
-            ## run mfe
-            print("run MFE")
-            
-        else:
+        if  blast_db == None and human_genome == False:            
             print("Specificity of primers using MFEprimer not required")
             
         print("\n--------------------------------------------------------")
