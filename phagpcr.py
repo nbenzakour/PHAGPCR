@@ -9,39 +9,6 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import SeqIO
 
-primer3_params = {
-    # Basic parameters
-    'PRIMER_OPT_SIZE' : 20, 
-    'PRIMER_MIN_SIZE' : 19,
-    'PRIMER_MAX_SIZE' : 23,
-    'PRIMER_PICK_INTERNAL_OLIGO' : 0,
-    'PRIMER_OPT_TM' : 60.0,
-    'PRIMER_MIN_TM' : 59.0,
-    'PRIMER_MAX_TM' : 63.0,
-    'PRIMER_PAIR_MAX_DIFF_TM' : 100.0,
-    'PRIMER_MIN_GC' : 40.0, 
-    'PRIMER_MAX_GC' : 60.0,
-    # Product
-    'PRIMER_PRODUCT_SIZE_RANGE' : [[100,150],[150,175],[175,200],[200,225],[225,250],[250,275],[275,300]],
-    'PRIMER_PRODUCT_OPT_SIZE' : 150,
-    # Advanced metrics
-    'PRIMER_TM_FORMULA' : 1,    # SantaLucia 1988
-    'PRIMER_SALT_MONOVALENT' : 50.0,
-    'PRIMER_SALT_CORRECTIONS' : 1,   # SantaLucia 1988
-    'PRIMER_DNA_CONC' : 50.0,
-    'PRIMER_MAX_POLY_X' : 4,
-    'PRIMER_INTERNAL_MAX_POLY_X' : 4,
-    'PRIMER_MAX_NS_ACCEPTED' : 0,
-    # Complementarity
-    'PRIMER_MAX_SELF_ANY' : 8.00,
-    'PRIMER_MAX_SELF_END' : 3.00,
-    'PRIMER_MAX_END_STABILITY' : 9.0,
-    'PRIMER_PAIR_MAX_COMPL_ANY' : 12,
-    'PRIMER_PAIR_MAX_COMPL_END' : 8,
-    # Output
-    'PRIMER_NUM_RETURN' : 1,
-}
-
 def parse_args():
     parser = ArgumentParser(description='Design primers using Primer3 and perform BLAST search on the designed primers')
     parser.add_argument('-f', '--fasta_file', 
@@ -53,7 +20,7 @@ def parse_args():
     parser.add_argument('-b', '--blast_db', 
                         type=str, default=None, required=False, 
                         help='BLAST database for searching the primers (optional)')
-    parser.add_argument('-H', '--human_genome', 
+    parser.add_argument('-hg', '--human_genome', 
                         type=bool, default=False, required=False, 
                         help='Screen the primers against the human genome - version hg38 (True or False)(optional)')
     parser.add_argument('-s', '--sequences_dir', 
@@ -62,7 +29,57 @@ def parse_args():
     parser.add_argument('-r', '--runtype', 
                         type=int, default=1, choices=[1, 2, 3], 
                         help='Run type for primer design: 1 = supervised design providing target, 2 = unsupervised design providing phage genome, 3 = cocktail detection with multiplex primers')
+    parser.add_argument('-tm', '--tm_optimal', 
+                        type=int, default=60, required=False, 
+                        help='Optimal Tm for primers')
+    parser.add_argument('-sz', '--size_optimal', 
+                        type=int, default=20, required=False, 
+                        help='Optimal size for primers')
+    parser.add_argument('-k', '--kit', 
+                        type=str, default="", choices=["Quantinova", "Invitrogen"], required=False, 
+                        help='qPCR kit used to inform Tm specification')
+    parser.add_argument('-tm2', '--tm_specificity', 
+                        type=int, default=40, required=False, 
+                        help='Minimum Tm to report primers-template matches screened with MFEprimer')
     return parser.parse_args()
+
+def update_primer3(seq, tm, primer_size, kit):
+    start = 150
+    included_length = len(seq)-(start*2)
+    primer3_params = {
+        # Basic parameters
+        'PRIMER_OPT_SIZE' : primer_size, 
+        'PRIMER_MIN_SIZE' : 18,
+        'PRIMER_MAX_SIZE' : 23,
+        'PRIMER_PICK_INTERNAL_OLIGO' : 0,
+        'PRIMER_OPT_TM' : float(tm),
+        'PRIMER_MIN_TM' : 59.0,
+        'PRIMER_MAX_TM' : 63.0,
+        'PRIMER_PAIR_MAX_DIFF_TM' : 100.0,
+        'PRIMER_MIN_GC' : 40.0, 
+        'PRIMER_MAX_GC' : 60.0,
+        # Product
+        'PRIMER_PRODUCT_SIZE_RANGE' : [[100,150],[150,175],[175,200],[200,225],[225,250],[250,275],[275,300]],
+        'PRIMER_PRODUCT_OPT_SIZE' : 150,
+        'SEQUENCE_INCLUDED_REGION' : [start,included_length],
+        # Advanced metrics
+        'PRIMER_TM_FORMULA' : 1,    # SantaLucia 1988
+        'PRIMER_SALT_MONOVALENT' : 50.0,
+        'PRIMER_SALT_CORRECTIONS' : 1,   # SantaLucia 1988
+        'PRIMER_DNA_CONC' : 50.0,
+        'PRIMER_MAX_POLY_X' : 4,
+        'PRIMER_INTERNAL_MAX_POLY_X' : 4,
+        'PRIMER_MAX_NS_ACCEPTED' : 0,
+        # Complementarity
+        'PRIMER_MAX_SELF_ANY' : 8.00,
+        'PRIMER_MAX_SELF_END' : 3.00,
+        'PRIMER_MAX_END_STABILITY' : 9.0,
+        'PRIMER_PAIR_MAX_COMPL_ANY' : 12,
+        'PRIMER_PAIR_MAX_COMPL_END' : 8,
+        # Output
+        'PRIMER_NUM_RETURN' : 1,
+    }
+    return primer3_params
 
 def testing(args):
     # verify fasta file exists
@@ -159,20 +176,20 @@ def df_to_fasta(df, output_dir):
 def run_mfe_index(db):
     subprocess.call('mfeprimer index -i {}'.format(db), shell=True)
 
-def run_mfe(primers, db, output_dir, suffix, tm):
+def run_mfe(primers, db, output_dir, suffix, tm_spec):
     print("Screening for all features and specificity against Blast database: " + str(db))
     print("Running MFEprimer full analysis...\n")
-    subprocess.call('mfeprimer -i {} -d {} -o {}/mfe_results_{}.txt -S 500 -t {} -j'.format(primers, db, output_dir, suffix, tm), shell=True)
+    subprocess.call('mfeprimer -i {} -d {} -o {}/mfe_results_{}.txt -S 500 -t {} -j'.format(primers, db, output_dir, suffix, tm_spec), shell=True)
     
 def run_mfe_dimers(primers, output_dir, suffix):
     print("Screening for dimers.")
     print("Running MFEprimer dimers...")
     subprocess.call('mfeprimer dimers -i {} --dg 10 -o {}/mfe_dimer_results_{}.txt -S 500 -t {} -j'.format(primers, output_dir, suffix), shell=True)
 
-def run_mfe_spec(primers, db, output_dir, suffix, tm):
+def run_mfe_spec(primers, db, output_dir, suffix, tm_spec):
     print("Screening for specificity against Blast database: " + str(db))
     print("Running MFEprimer specificity...")
-    subprocess.call('mfeprimer spec -i {} -d {} -o {}/mfe_spec_results_{}.txt -S 500 -t {} -j'.format(primers, db, output_dir, suffix, tm), shell=True)
+    subprocess.call('mfeprimer spec -i {} -d {} -o {}/mfe_spec_results_{}.txt -S 500 -t {} -j'.format(primers, db, output_dir, suffix, tm_spec), shell=True)
 
 if __name__ == '__main__':
     
@@ -184,6 +201,10 @@ if __name__ == '__main__':
     sequences_dir = args.sequences_dir
     human_genome = args.human_genome
     runtype = args.runtype
+    tm = args.tm_optimal
+    primer_size = args.size_optimal
+    kit = args.kit
+    tm_spec = args.tm_specificity
 
     # Testing arguments
     testing(args)
@@ -203,11 +224,12 @@ if __name__ == '__main__':
         print("--------------------------------------------------------")
         primers=[]
         for header, seq in sequences.items():
+            primer3_params = update_primer3(seq, tm, primer_size, kit)
             primer_results = get_primers(header, seq, primer3_params)         
             all_primers = parse_primers(primer_results, header)
         
         # create prefiltered primers file
-        all_primers.to_csv(output_dir + '/prefiltered_primers_file.csv', index=False)
+        all_primers.to_csv(output_dir + '/prefiltered_primers_file.csv', index=False, sep ='\t')
         print('\nPrefiltered primers stored in: ', output_dir + '/prefiltered_primers_file.csv')
         
         # create multifasta file with all predicted priners
@@ -220,11 +242,11 @@ if __name__ == '__main__':
         if blast_db != None:
             ## by default, mfeprimer_index will check if the indexing has already been performed before proceeding
             run_mfe_index(blast_db)
-            run_mfe(output_dir + '/all_primers.fna',blast_db,output_dir,'blastdb', 45)
+            run_mfe(output_dir + '/all_primers.fna',blast_db,output_dir,'blastdb', tm_spec)
         else:
             print("No Blast database provided")    
         if human_genome == True:
-            run_mfe_spec(output_dir + '/all_primers.fna','/data/db/blastdb/hg38/GCA_000001405.29_GRCh38.p14_genomic.fna',output_dir,'hg38', 40)
+            run_mfe_spec(output_dir + '/all_primers.fna','/data/db/blastdb/hg38/GCA_000001405.29_GRCh38.p14_genomic.fna',output_dir,'hg38', tm_spec)
         else:
             print("No Human Genome screening required")
         if  blast_db == None and human_genome == False:            
