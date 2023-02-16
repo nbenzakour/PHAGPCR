@@ -28,7 +28,7 @@ def parse_args():
                         help='Directory containing sequences for screening against the primers (optional)')
     parser.add_argument('-r', '--runtype', 
                         type=int, default=1, choices=[1, 2, 3], 
-                        help='Run type for primer design: 1 = supervised design providing target, 2 = unsupervised design providing phage genome, 3 = cocktail detection with multiplex primers')
+                        help='Run type for primer design: 1 = supervised design providing target, 2 = cocktail detection with multiplex primers, 3 = unsupervised design providing phage genome')
     parser.add_argument('-tm', '--tm_optimal', 
                         type=int, default=60, required=False, 
                         help='Optimal Tm for primers')
@@ -102,7 +102,7 @@ def readfile(fasta_file):
             if line.startswith('>'):
                 if current_header:
                     sequences[current_header] = current_seq
-                current_header = line[1:].strip()
+                current_header = line[1:].strip().replace(" ", "_")
                 current_seq = ''
             else:
                 current_seq += line.strip()
@@ -166,7 +166,7 @@ def parse_primers(primer_results, header):
     primers_df = pd.DataFrame(primers)
     return(primers_df)
 
-def df_to_fasta(df, output_dir):
+def df_to_fasta(df, output_dir, output_fasta):
     records = []
     for index, row in df.iterrows():
         seq_record = SeqRecord(Seq(row['left_primer_sequence']),
@@ -177,7 +177,7 @@ def df_to_fasta(df, output_dir):
                                id=row['right_primer_name'],
                                description="")
         records.append(seq_record)
-    with open(output_dir + "/all_primers.fna", "w") as handle:
+    with open(output_dir + "/" + output_fasta + ".fna", "w") as handle:
         SeqIO.write(records, handle, 'fasta')
 
 def run_mfe_index(db):
@@ -185,18 +185,18 @@ def run_mfe_index(db):
 
 def run_mfe(primers, db, output_dir, suffix, tm_spec):
     print("Screening for all features and specificity against Blast database: " + str(db))
-    print("Running MFEprimer full analysis...\n")
-    subprocess.call('mfeprimer -i {} -d {} -o {}/mfe_results_{}.txt -S 500 -t {} -j'.format(primers, db, output_dir, suffix, tm_spec), shell=True)
+    print("Running MFEprimer full analysis for " + primers + " ...\n")
+    subprocess.call('mfeprimer -i {} -d {} -o {}/mfe_results_{}.txt -S 500 -t {}'.format(primers, db, output_dir, suffix, tm_spec), shell=True)
     
 def run_mfe_dimers(primers, output_dir, suffix):
     print("Screening for dimers.")
-    print("Running MFEprimer dimers...")
-    subprocess.call('mfeprimer dimers -i {} --dg 10 -o {}/mfe_dimer_results_{}.txt -S 500 -t {} -j'.format(primers, output_dir, suffix), shell=True)
+    print("Running MFEprimer dimers...\n")
+    subprocess.call('mfeprimer dimer -i {} --dg -10 -o {}/mfe_dimer_results_{}.txt'.format(primers, output_dir, suffix), shell=True)
 
 def run_mfe_spec(primers, db, output_dir, suffix, tm_spec):
     print("Screening for specificity against Blast database: " + str(db))
-    print("Running MFEprimer specificity...")
-    subprocess.call('mfeprimer spec -i {} -d {} -o {}/mfe_spec_results_{}.txt -S 500 -t {} -j'.format(primers, db, output_dir, suffix, tm_spec), shell=True)
+    print("Running MFEprimer specificity...\n")
+    subprocess.call('mfeprimer spec -i {} -d {} -o {}/mfe_spec_results_{}.txt -S 500 -t {}'.format(primers, db, output_dir, suffix, tm_spec), shell=True)
 
 if __name__ == '__main__':
     
@@ -223,9 +223,8 @@ if __name__ == '__main__':
     sequences = readfile(fasta_file)
     print("Number of sequences submitted: ",len(sequences))
     
-    # Type 1: supervised design providing target
-    if runtype == 1:
-        print("\nRun type for primer design: 1 = supervised design providing target")
+    # Primer selection and testing for runtype 1 and 2
+    if runtype == 1 or runtype == 2:
         print("--------------------------------------------------------")
         print("Step 1 - select all primers against target using Primer3")
         print("--------------------------------------------------------")
@@ -233,39 +232,56 @@ if __name__ == '__main__':
         for header, seq in sequences.items():
             primer3_params = update_primer3(tm, primer_size, kit)
             primer_results = get_primers(header, seq, primer3_params)         
-            all_primers = parse_primers(primer_results, header)
+            all_primers_df = parse_primers(primer_results, header)
         
         # create prefiltered primers file
-        all_primers.to_csv(output_dir + '/prefiltered_primers_file.csv', index=False, sep ='\t')
+        all_primers_df.to_csv(output_dir + '/prefiltered_primers_file.csv', index=False, sep ='\t')
         print('\nPrefiltered primers stored in: ', output_dir + '/prefiltered_primers_file.csv')
         
         # create multifasta file with all predicted priners
-        df_to_fasta(all_primers, output_dir)
+        df_to_fasta(all_primers_df, output_dir, 'all_primers')
         print('Prefiltered primers in fasta format stored in: ', output_dir + '/all_primers.fna')
  
         print("\n--------------------------------------------------------")               
-        print("Step 2 - test specificity of primers using MFEprimer")
+        print("Step 2 - test specificity of primers using MFEprimer against custom database")
         print("--------------------------------------------------------")
         if blast_db != None:
             ## by default, mfeprimer_index will check if the indexing has already been performed before proceeding
             run_mfe_index(blast_db)
-            run_mfe(output_dir + '/all_primers.fna',blast_db,output_dir,'blastdb', tm_spec)
+            # run_mfe(output_dir + '/all_primers.fna',blast_db,output_dir,'blastdb', tm_spec)
+            # testing running MFE on separate fasta files         
+            grouped = all_primers_df.groupby('header')
+            for name, group in grouped:
+                df_to_fasta(grouped.get_group(name), output_dir, name)
+                run_mfe(output_dir + '/' + str(name) + '.fna', blast_db, output_dir, str(name), tm_spec)
         else:
-            print("No Blast database provided")    
+            print("No Blast database provided")
+            
+        print("\n--------------------------------------------------------")               
+        print("Step 3 - test specificity of primers using MFEprimer against human genome")
+        print("--------------------------------------------------------")    
         if human_genome == True:
+            # run MFEprimer specificity on combined file against human genome
             run_mfe_spec(output_dir + '/all_primers.fna','/data/db/blastdb/hg38/GCA_000001405.29_GRCh38.p14_genomic.fna',output_dir,'hg38', tm_spec)
         else:
             print("No Human Genome screening required")
-        if  blast_db == None and human_genome == False:            
-            print("Specificity of primers using MFEprimer not required")
-            
+ 
+        if runtype == 2:
+            print("\n--------------------------------------------------------")               
+            print("Step 4 - test primer compatibility for multiplex and cocktail detection")
+            print("--------------------------------------------------------")               
+            # run MFEprimer dimers on combined file 
+            run_mfe_dimers(output_dir + '/all_primers.fna', output_dir, 'all_primers')
+
+
+           
         print("\n--------------------------------------------------------")
-        print("Step 3 - summarising all results")
+        print("Final step - summarising all results")
         print("--------------------------------------------------------")       
         
     
-    # Type 2: unsupervised design providing phage genome
-    elif runtype == 2:
+    # Type 3: unsupervised design providing phage genome
+    elif runtype == 3:
         # for header, seq in sequences.items():
             # search for primase gene
             # if present
@@ -277,6 +293,3 @@ if __name__ == '__main__':
             #   get_primers(header_polymerase, seq_polymerase, primer3_params)           
         print("new feature to come")
         
-    # Type 3: cocktail detection with multiplex primers')
-    else:
-        print("other new feature to come")
