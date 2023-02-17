@@ -74,7 +74,7 @@ def update_primer3(tm, primer_size, kit):
         'PRIMER_PAIR_MAX_COMPL_ANY' : 12,
         'PRIMER_PAIR_MAX_COMPL_END' : 8,
         # Output
-        'PRIMER_NUM_RETURN' : 1,
+        'PRIMER_NUM_RETURN' : 2,
     }
     return primer3_params
 
@@ -89,7 +89,7 @@ def mkdir_outdir(output_dir):
     if not os.path.exists('{}'.format(output_dir)):
         os.makedirs('{}'.format(output_dir))
     else:
-        print('==> Output directory already exists. Carrying on...')
+        print('==> Output directory already exists. Carrying on...\n')
 
 def readfile(fasta_file):
     # Read the FASTA file into a dictionary
@@ -110,7 +110,7 @@ def readfile(fasta_file):
     return sequences     
 
 def get_primers(header, seq, primer3_params):
-    print("3. Designing primers for ", header)
+    print("Designing primers for ", header)
     # if sequence is equal or greater to 500 bp, define a subregion to design primers (=minimum 200bp) 
     if len(seq) >= 500:
         start = 150
@@ -184,8 +184,7 @@ def run_mfe_index(db):
     subprocess.call('mfeprimer index -i {}'.format(db), shell=True)
 
 def run_mfe(primers, db, output_dir, suffix, tm_spec):
-    print("Screening for all features and specificity against Blast database: " + str(db))
-    print("Running MFEprimer full analysis for " + primers + " ...\n")
+    print("Running MFEprimer full analysis for " + primers + " ...")
     subprocess.call('mfeprimer -i {} -d {} -o {}/mfe_results_{}.txt -S 500 -t {}'.format(primers, db, output_dir, suffix, tm_spec), shell=True)
     
 def run_mfe_dimers(primers, output_dir, suffix):
@@ -221,7 +220,7 @@ if __name__ == '__main__':
     
     # Read fasta_file in
     sequences = readfile(fasta_file)
-    print("Number of sequences submitted: ",len(sequences))
+    print("Number of sequences submitted: ",len(sequences), "\n")
     
     # Primer selection and testing for runtype 1 and 2
     if runtype == 1 or runtype == 2:
@@ -248,12 +247,14 @@ if __name__ == '__main__':
         if blast_db != None:
             ## by default, mfeprimer_index will check if the indexing has already been performed before proceeding
             run_mfe_index(blast_db)
+            print("Screening for all features and specificity against Blast database: " + str(blast_db) + "\n")
             # run_mfe(output_dir + '/all_primers.fna',blast_db,output_dir,'blastdb', tm_spec)
             # testing running MFE on separate fasta files         
-            grouped = all_primers_df.groupby('header')
+            grouped = all_primers_df.groupby('left_primer_name')
             for name, group in grouped:
-                df_to_fasta(grouped.get_group(name), output_dir, name)
-                run_mfe(output_dir + '/' + str(name) + '.fna', blast_db, output_dir, str(name), tm_spec)
+                df_to_fasta(grouped.get_group(name), output_dir, name[:-1])
+                run_mfe(output_dir + '/' + str(name[:-1]) + '.fna', blast_db, output_dir, str(name[:-1]), tm_spec)
+                os.remove(output_dir + '/' + str(name[:-1]) + '.fna')
         else:
             print("No Blast database provided")
             
