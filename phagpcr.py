@@ -29,6 +29,9 @@ def parse_args():
     parser.add_argument('-r', '--runtype', 
                         type=int, default=1, choices=[1, 2, 3], 
                         help='Run type for primer design: 1 = supervised design providing target, 2 = cocktail detection with multiplex primers, 3 = unsupervised design providing phage genome')
+    parser.add_argument('-nb', '--primer_nb', 
+                        type=int, default=1, required=False, 
+                        help='Nb of primer pairs to design per target sequence')
     parser.add_argument('-tm', '--tm_optimal', 
                         type=int, default=60, required=False, 
                         help='Optimal Tm for primers')
@@ -43,7 +46,7 @@ def parse_args():
                         help='Minimum Tm to report primers-template matches screened with MFEprimer')
     return parser.parse_args()
 
-def update_primer3(tm, primer_size, kit):
+def update_primer3(tm, primer_size, primer_nb, kit):
     primer3_params = {
         # Basic parameters
         'PRIMER_OPT_SIZE' : primer_size, 
@@ -74,7 +77,7 @@ def update_primer3(tm, primer_size, kit):
         'PRIMER_PAIR_MAX_COMPL_ANY' : 12,
         'PRIMER_PAIR_MAX_COMPL_END' : 8,
         # Output
-        'PRIMER_NUM_RETURN' : 2,
+        'PRIMER_NUM_RETURN' : primer_nb,
     }
     return primer3_params
 
@@ -207,6 +210,7 @@ if __name__ == '__main__':
     sequences_dir = args.sequences_dir
     human_genome = args.human_genome
     runtype = args.runtype
+    primer_nb = args.primer_nb
     tm = args.tm_optimal
     primer_size = args.size_optimal
     kit = args.kit
@@ -229,7 +233,7 @@ if __name__ == '__main__':
         print("--------------------------------------------------------")
         primers=[]
         for header, seq in sequences.items():
-            primer3_params = update_primer3(tm, primer_size, kit)
+            primer3_params = update_primer3(tm, primer_size, primer_nb, kit)
             primer_results = get_primers(header, seq, primer3_params)         
             all_primers_df = parse_primers(primer_results, header)
         
