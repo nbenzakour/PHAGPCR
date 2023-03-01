@@ -1,5 +1,4 @@
 import subprocess
-import sys
 import os
 import os.path
 import pandas as pd
@@ -200,6 +199,44 @@ def run_mfe_spec(primers, db, output_dir, suffix, tm_spec):
     print("Running MFEprimer specificity...\n")
     subprocess.call('mfeprimer spec -i {} -d {} -o {}/mfe_spec_results_{}.txt -S 500 -t {}'.format(primers, db, output_dir, suffix, tm_spec), shell=True)
 
+def parse_MFEprimers_file(filename):
+    # read the file and split it into lines
+    with open(filename) as f:
+        lines = f.read().splitlines()
+    
+    # find the line that indicates the number of potential amplicons
+    start_line = [i for i, line in enumerate(lines) if line.startswith("Descriptions of [")][0]
+
+    # count the number of amplicons
+    amplicons_count = int(lines[start_line].split(" ")[3])
+
+    # loop through the next few lines until you find the line that starts with "Amp 1"
+    #amp_line = start_line   
+    #while not lines[amp_line].startswith("Amp "):
+    #    amp_line += 1
+    #    print(amp_line)
+    
+    # extract the details of each amplicon
+    amplicon_details = []
+    for i in range(amplicons_count):
+        amplicon_id = "Amp " + str(i+1)
+        amp_line = [j for j, line in enumerate(lines) if line.startswith(amplicon_id)][0]
+        amplicon_hit = lines[amp_line].split("==>")[1].strip()
+        amplicon_size = int(lines[amp_line + 2].split("=")[1].split()[0])
+        amplicon_gc = float(lines[amp_line + 2].split("=")[2].strip("%"))
+        amplicon_fpTm = float(lines[amp_line + 3].split("=")[1].strip("°C, Delta G "))
+        amplicon_rpTm = float(lines[amp_line + 4].split("=")[1].strip("°C, Delta G "))
+        amplicon_fpDg = float(lines[amp_line + 3].split("=")[2].strip("kcal/mol"))
+        amplicon_rpDg = float(lines[amp_line + 4].split("=")[2].strip("kcal/mol"))
+        amplicon_binding_sites = lines[amp_line + 5].split()[2] + "-" + lines[amp_line + 5].split()[2]
+        amplicon_details.append((amplicon_id, amplicon_hit, amplicon_size, amplicon_gc, amplicon_fpTm, amplicon_rpTm, amplicon_fpDg, amplicon_rpDg, amplicon_binding_sites))
+    
+    # create a Pandas DataFrame with the amplicon details
+    df = pd.DataFrame(amplicon_details, columns=["Amplicon ID", "Hit ID", "Size", "GC", "Fp Tm", "Rp Tm", "Fp Dg", "Rp Dg", "Binding Sites"])
+    print(df, "\n")
+    return df
+
+
 if __name__ == '__main__':
     
     args = parse_args()
@@ -258,6 +295,7 @@ if __name__ == '__main__':
             for name, group in grouped:
                 df_to_fasta(grouped.get_group(name), output_dir, name[:-1])
                 run_mfe(output_dir + '/' + str(name[:-1]) + '.fna', blast_db, output_dir, str(name[:-1]), tm_spec)
+                parse_MFEprimers_file(output_dir + '/mfe_results_' + str(name[:-1]) + '.txt')
                 os.remove(output_dir + '/' + str(name[:-1]) + '.fna')
         else:
             print("No Blast database provided")
@@ -283,7 +321,6 @@ if __name__ == '__main__':
         print("\n--------------------------------------------------------")
         print("Final step - summarising all results")
         print("--------------------------------------------------------")       
-        
     
     # Type 3: unsupervised design providing phage genome
     elif runtype == 3:
