@@ -198,6 +198,7 @@ def run_mfe_spec(primers, db, output_dir, suffix, tm_spec):
     print("Screening for specificity against Blast database: " + str(db))
     print("Running MFEprimer specificity...\n")
     subprocess.call('mfeprimer spec -i {} -d {} -o {}/mfe_spec_results_{}.txt -S 500 -t {}'.format(primers, db, output_dir, suffix, tm_spec), shell=True)
+    
 
 def parse_MFEprimers_file(filename):
     # read the file and split it into lines
@@ -209,33 +210,59 @@ def parse_MFEprimers_file(filename):
 
     # count the number of amplicons
     amplicons_count = int(lines[start_line].split(" ")[3])
-
-    # loop through the next few lines until you find the line that starts with "Amp 1"
-    #amp_line = start_line   
-    #while not lines[amp_line].startswith("Amp "):
-    #    amp_line += 1
-    #    print(amp_line)
     
-    # extract the details of each amplicon
-    amplicon_details = []
-    for i in range(amplicons_count):
-        amplicon_id = "Amp " + str(i+1)
-        amp_line = [j for j, line in enumerate(lines) if line.startswith(amplicon_id)][0]
-        amplicon_hit = lines[amp_line].split("==>")[1].strip()
-        amplicon_size = int(lines[amp_line + 2].split("=")[1].split()[0])
-        amplicon_gc = float(lines[amp_line + 2].split("=")[2].strip("%"))
-        amplicon_fpTm = float(lines[amp_line + 3].split("=")[1].strip("°C, Delta G "))
-        amplicon_rpTm = float(lines[amp_line + 4].split("=")[1].strip("°C, Delta G "))
-        amplicon_fpDg = float(lines[amp_line + 3].split("=")[2].strip("kcal/mol"))
-        amplicon_rpDg = float(lines[amp_line + 4].split("=")[2].strip("kcal/mol"))
-        amplicon_binding_sites = lines[amp_line + 5].split()[2] + "-" + lines[amp_line + 5].split()[2]
-        amplicon_details.append((amplicon_id, amplicon_hit, amplicon_size, amplicon_gc, amplicon_fpTm, amplicon_rpTm, amplicon_fpDg, amplicon_rpDg, amplicon_binding_sites))
-    
-    # create a Pandas DataFrame with the amplicon details
-    df = pd.DataFrame(amplicon_details, columns=["Amplicon ID", "Hit ID", "Size", "GC", "Fp Tm", "Rp Tm", "Fp Dg", "Rp Dg", "Binding Sites"])
-    print(df, "\n")
-    return df
+    if amplicons_count >= 1:
+        # extract the details of each amplicon
+        amplicon_details = []
+        for i in range(amplicons_count):
+            amplicon_id = "Amp " + str(i+1)
+            amp_line = [j for j, line in enumerate(lines) if line.startswith(amplicon_id)][0]
+            amplicon_fp = lines[amp_line].split(" ")[2].strip()
+            amplicon_rp = lines[amp_line].split(" ")[4].strip()
+            amplicon_hit = lines[amp_line].split("==>")[1].strip()
+            amplicon_size = int(lines[amp_line + 2].split("=")[1].split()[0])
+            amplicon_gc = float(lines[amp_line + 2].split("=")[2].strip("%"))
+            amplicon_fpTm = float(lines[amp_line + 3].split("=")[1].strip("°C, Delta G "))
+            amplicon_rpTm = float(lines[amp_line + 4].split("=")[1].strip("°C, Delta G "))
+            amplicon_fpDg = float(lines[amp_line + 3].split("=")[2].strip("kcal/mol"))
+            amplicon_rpDg = float(lines[amp_line + 4].split("=")[2].strip("kcal/mol"))
+            amplicon_binding_sites = lines[amp_line + 5].split()[2] + "-" + lines[amp_line + 5].split()[2]
+            amplicon_details.append((amplicon_id, amplicon_fp, amplicon_rp, amplicon_hit, amplicon_size, amplicon_gc, amplicon_fpTm, amplicon_rpTm, amplicon_fpDg, amplicon_rpDg, amplicon_binding_sites))    
+        # create a Pandas DataFrame with the amplicon details
+        df = pd.DataFrame(amplicon_details, columns=["Amplicon ID", "Fp", "Rp", "Hit ID", "Size", "GC", "Fp Tm", "Rp Tm", "Fp Dg", "Rp Dg", "Binding Sites"])
+        print(df, "\n")
+        return df
+    else:
+        print("==> No primer pairs were found to bind and produce amplicons (within the limit specified - default 500bp.)")
 
+def parse_MFEprimers_dimer_file(filename):
+    # read the file and split it into lines
+    with open(filename) as f:
+        lines = f.read().splitlines()
+    
+    # find the line that indicates the number of potential dimers
+    start_line = [i for i, line in enumerate(lines) if line.startswith("Dimer List ")][0]
+
+    # count the number of dimers
+    dimer_count = int(lines[start_line].split("(")[1].split(")")[0])
+    
+    if dimer_count >= 1:
+        # extract the details of each dimer
+        dimer_details = []
+        for i in range(dimer_count):
+            dim_id = "Dimer " + str(i+1)
+            dim_line = [j for j, line in enumerate(lines) if line.startswith(dim_id)][0]
+            dim_fp = lines[dim_line].split(" ")[2].strip()
+            dim_rp = lines[dim_line].split(" ")[4].strip()
+            dim_score = lines[dim_line + 2].split(" ")[1].strip(",")
+            dim_Dg = float(lines[dim_line + 2].split("=")[1].strip("kcal/mol"))
+            dimer_details.append((dim_id, dim_fp, dim_rp, dim_score, dim_Dg))    
+        # create a Pandas DataFrame with the amplicon details
+        df = pd.DataFrame(dimer_details, columns=["Dimer ID", "Fp", "Rp", "Score", "Dg"])
+        print(df, "\n")
+        return df
+    else:
+        print("==> No primer pairs were found to form dimers (within the limit specified)")
 
 if __name__ == '__main__':
     
@@ -306,6 +333,7 @@ if __name__ == '__main__':
         if human_genome == True:
             # run MFEprimer specificity on combined file against human genome
             run_mfe_spec(output_dir + '/all_primers.fna','/data/db/blastdb/hg38/GCA_000001405.29_GRCh38.p14_genomic.fna',output_dir,'hg38', tm_spec)
+            parse_MFEprimers_file(output_dir + '/mfe_spec_results_hg38.txt')
         else:
             print("No Human Genome screening required")
  
@@ -315,7 +343,7 @@ if __name__ == '__main__':
             print("--------------------------------------------------------")               
             # run MFEprimer dimers on combined file 
             run_mfe_dimers(output_dir + '/all_primers.fna', output_dir, 'all_primers')
-
+            parse_MFEprimers_dimer_file(output_dir + '/mfe_dimer_results_all_primers.txt')
 
            
         print("\n--------------------------------------------------------")
