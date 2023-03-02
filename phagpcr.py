@@ -197,8 +197,7 @@ def run_mfe_dimers(primers, output_dir, suffix):
 def run_mfe_spec(primers, db, output_dir, suffix, tm_spec):
     print("Screening for specificity against Blast database: " + str(db))
     print("Running MFEprimer specificity...\n")
-    subprocess.call('mfeprimer spec -i {} -d {} -o {}/mfe_spec_results_{}.txt -S 500 -t {}'.format(primers, db, output_dir, suffix, tm_spec), shell=True)
-    
+    subprocess.call('mfeprimer spec -i {} -d {} -o {}/mfe_spec_results_{}.txt -S 500 -t {}'.format(primers, db, output_dir, suffix, tm_spec), shell=True)   
 
 def parse_MFEprimers_file(filename):
     # read the file and split it into lines
@@ -230,7 +229,10 @@ def parse_MFEprimers_file(filename):
             amplicon_details.append((amplicon_id, amplicon_fp, amplicon_rp, amplicon_hit, amplicon_size, amplicon_gc, amplicon_fpTm, amplicon_rpTm, amplicon_fpDg, amplicon_rpDg, amplicon_binding_sites))    
         # create a Pandas DataFrame with the amplicon details
         df = pd.DataFrame(amplicon_details, columns=["Amplicon ID", "Fp", "Rp", "Hit ID", "Size", "GC", "Fp Tm", "Rp Tm", "Fp Dg", "Rp Dg", "Binding Sites"])
-        print(df, "\n")
+        df['Header'] = df.apply(lambda x: x['Fp'].rsplit('_', 1)[0], axis=1)
+        df['Max_hit_per_pair'] = df.apply(lambda x: amplicons_count, axis=1)
+        df['Unique_hit'] = df.apply(lambda x: 'No' if amplicons_count >1 else 'Yes', axis=1)
+        #print(df, "\n")
         return df
     else:
         print("==> No primer pairs were found to bind and produce amplicons (within the limit specified - default 500bp.)")
@@ -259,7 +261,8 @@ def parse_MFEprimers_dimer_file(filename):
             dimer_details.append((dim_id, dim_fp, dim_rp, dim_score, dim_Dg))    
         # create a Pandas DataFrame with the amplicon details
         df = pd.DataFrame(dimer_details, columns=["Dimer ID", "Fp", "Rp", "Score", "Dg"])
-        print(df, "\n")
+        df['Problematic'] = df.apply(lambda x: 'Yes' if x['Fp'].rsplit('_', 1)[0] != x['Rp'].rsplit('_', 1)[0] else 'No', axis=1)
+        #print(df, "\n")
         return df
     else:
         print("==> No primer pairs were found to form dimers (within the limit specified)")
@@ -285,6 +288,7 @@ if __name__ == '__main__':
     
     # Creare output directory  
     mkdir_outdir(output_dir)
+    mkdir_outdir(output_dir + "/indiv_results")
     
     # Read fasta_file in
     sequences = readfile(fasta_file)
@@ -319,11 +323,16 @@ if __name__ == '__main__':
             # run_mfe(output_dir + '/all_primers.fna',blast_db,output_dir,'blastdb', tm_spec)
             # testing running MFE on separate fasta files         
             grouped = all_primers_df.groupby('left_primer_name')
+            df_local_screening = pd.DataFrame()
             for name, group in grouped:
                 df_to_fasta(grouped.get_group(name), output_dir, name[:-1])
-                run_mfe(output_dir + '/' + str(name[:-1]) + '.fna', blast_db, output_dir, str(name[:-1]), tm_spec)
-                parse_MFEprimers_file(output_dir + '/mfe_results_' + str(name[:-1]) + '.txt')
+                run_mfe(output_dir + '/' + str(name[:-1]) + '.fna', blast_db, output_dir + '/indiv_results', str(name[:-1]), tm_spec)
+                local_screening = parse_MFEprimers_file(output_dir + '/indiv_results/mfe_results_' + str(name[:-1]) + '.txt')
+                df_local_screening = pd.concat([df_local_screening, local_screening], ignore_index=True)
                 os.remove(output_dir + '/' + str(name[:-1]) + '.fna')
+            print(df_local_screening)
+            df_local_screening.to_csv(output_dir + '/mfe_screening_results_against_local_database_summary.csv', sep='\t', index=False)
+            print(df_local_screening.groupby(df_local_screening['Fp'].str[:-1])['Max_hit_per_pair'].unique())
         else:
             print("No Blast database provided")
             
@@ -333,7 +342,11 @@ if __name__ == '__main__':
         if human_genome == True:
             # run MFEprimer specificity on combined file against human genome
             run_mfe_spec(output_dir + '/all_primers.fna','/data/db/blastdb/hg38/GCA_000001405.29_GRCh38.p14_genomic.fna',output_dir,'hg38', tm_spec)
-            parse_MFEprimers_file(output_dir + '/mfe_spec_results_hg38.txt')
+            df_human_spec = parse_MFEprimers_file(output_dir + '/mfe_spec_results_hg38.txt')
+            if not df_human_spec.empty :
+                df_human_spec = df_human_spec.drop(['Unique_hit', 'Max_hit_per_pair'], axis=1)
+                df_human_spec.to_csv(output_dir + '/mfe_spec_results_hg38_summary.csv', sep='\t', index=False)
+            print(df_human_spec)
         else:
             print("No Human Genome screening required")
  
@@ -343,8 +356,10 @@ if __name__ == '__main__':
             print("--------------------------------------------------------")               
             # run MFEprimer dimers on combined file 
             run_mfe_dimers(output_dir + '/all_primers.fna', output_dir, 'all_primers')
-            parse_MFEprimers_dimer_file(output_dir + '/mfe_dimer_results_all_primers.txt')
-
+            df_cocktail_dimers = parse_MFEprimers_dimer_file(output_dir + '/mfe_dimer_results_all_primers.txt')
+            if not df_human_spec.empty :
+                df_cocktail_dimers.to_csv(output_dir + '/mfe_dimer_results_all_primers_summary.csv', sep='\t', index=False)
+            print(df_cocktail_dimers)
            
         print("\n--------------------------------------------------------")
         print("Final step - summarising all results")
