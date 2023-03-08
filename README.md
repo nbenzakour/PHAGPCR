@@ -5,15 +5,6 @@ Screening phages directly from a patient's serum using qPCR methods can be incre
 Here we present PHAGPCR, a small pipeline built around Primer3 and MFEprimer, that can help identify suitable primer sequences and assess their specificity against local and public databases representing the phageome, microbiome and human genome. By combining these, researchers and clinicians can minimize the risk of false positive results and obtain a clearer picture of the phage populations present in a patient's serum.
 
 Furthermore, this approach can be used to predict primers compatible with tracking multiple phages from within the same serum sample, provided that unique regions exist and suitable primers can be predicted. This can be particularly useful in cases where a combination of phages is administered to a patient for therapeutic treatment.
-
-
-# STATUS
-
-- STEP 1 and 2 prototype completed
-- STEP3 to do
-
-![schema](data/Figma_2023-03-07.png)
-
 # USAGE
 
 ::
@@ -58,3 +49,10 @@ Furthermore, this approach can be used to predict primers compatible with tracki
     -tm2 TM_SPECIFICITY, --tm_specificity TM_SPECIFICITY
                             Minimum Tm to report primers-template matches
                             screened with MFEprimer
+
+# STATUS
+
+- STEP 1 and 2 prototype completed
+- STEP3 to do
+
+![schema](data/Figma_2023-03-07.png)
