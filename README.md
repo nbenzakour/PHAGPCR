@@ -16,43 +16,45 @@ Furthermore, this approach can be used to predict primers compatible with tracki
 
 # USAGE
 
-usage: phagpcr.py [-h] [-f FASTA_FILE] [-o OUTPUT_DIR] [-b BLAST_DB]
-                  [-hg HUMAN_GENOME] [-s SEQUENCES_DIR] [-r {1,2,3}]
-                  [-nb PRIMER_NB] [-tm TM_OPTIMAL] [-sz SIZE_OPTIMAL]
-                  [-k {Quantinova,Invitrogen}] [-tm2 TM_SPECIFICITY]
+::
 
-Design primers using Primer3 and perform BLAST search on the designed
-primers
+    usage: phagpcr.py [-h] [-f FASTA_FILE] [-o OUTPUT_DIR] [-b BLAST_DB]
+                    [-hg HUMAN_GENOME] [-s SEQUENCES_DIR] [-r {1,2,3}]
+                    [-nb PRIMER_NB] [-tm TM_OPTIMAL] [-sz SIZE_OPTIMAL]
+                    [-k {Quantinova,Invitrogen}] [-tm2 TM_SPECIFICITY]
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -f FASTA_FILE, --fasta_file FASTA_FILE
-                        Path to the input FASTA file
-  -o OUTPUT_DIR, --output_dir OUTPUT_DIR
-                        Directory where the results will be saved
-  -b BLAST_DB, --blast_db BLAST_DB
-                        BLAST database for searching the primers
-                        (optional)
-  -hg HUMAN_GENOME, --human_genome HUMAN_GENOME
-                        Screen the primers against the human genome -
-                        version hg38 (True or False)(optional)
-  -s SEQUENCES_DIR, --sequences_dir SEQUENCES_DIR
-                        Directory containing sequences for screening
-                        against the primers (optional)
-  -r {1,2,3}, --runtype {1,2,3}
-                        Run type for primer design: 1 = supervised
-                        design providing target, 2 = cocktail
-                        detection with multiplex primers, 3 =
-                        unsupervised design providing phage genome
-  -nb PRIMER_NB, --primer_nb PRIMER_NB
-                        Nb of primer pairs to design per target
-                        sequence
-  -tm TM_OPTIMAL, --tm_optimal TM_OPTIMAL
-                        Optimal Tm for primers
-  -sz SIZE_OPTIMAL, --size_optimal SIZE_OPTIMAL
-                        Optimal size for primers
-  -k {Quantinova,Invitrogen}, --kit {Quantinova,Invitrogen}
-                        qPCR kit used to inform Tm specification
-  -tm2 TM_SPECIFICITY, --tm_specificity TM_SPECIFICITY
-                        Minimum Tm to report primers-template matches
-                        screened with MFEprimer
+    Design primers using Primer3 and perform BLAST search on the designed
+    primers
+
+    optional arguments:
+    -h, --help            show this help message and exit
+    -f FASTA_FILE, --fasta_file FASTA_FILE
+                            Path to the input FASTA file
+    -o OUTPUT_DIR, --output_dir OUTPUT_DIR
+                            Directory where the results will be saved
+    -b BLAST_DB, --blast_db BLAST_DB
+                            BLAST database for searching the primers
+                            (optional)
+    -hg HUMAN_GENOME, --human_genome HUMAN_GENOME
+                            Screen the primers against the human genome -
+                            version hg38 (True or False)(optional)
+    -s SEQUENCES_DIR, --sequences_dir SEQUENCES_DIR
+                            Directory containing sequences for screening
+                            against the primers (optional)
+    -r {1,2,3}, --runtype {1,2,3}
+                            Run type for primer design: 1 = supervised
+                            design providing target, 2 = cocktail
+                            detection with multiplex primers, 3 =
+                            unsupervised design providing phage genome
+    -nb PRIMER_NB, --primer_nb PRIMER_NB
+                            Nb of primer pairs to design per target
+                            sequence
+    -tm TM_OPTIMAL, --tm_optimal TM_OPTIMAL
+                            Optimal Tm for primers
+    -sz SIZE_OPTIMAL, --size_optimal SIZE_OPTIMAL
+                            Optimal size for primers
+    -k {Quantinova,Invitrogen}, --kit {Quantinova,Invitrogen}
+                            qPCR kit used to inform Tm specification
+    -tm2 TM_SPECIFICITY, --tm_specificity TM_SPECIFICITY
+                            Minimum Tm to report primers-template matches
+                            screened with MFEprimer
