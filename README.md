@@ -9,10 +9,17 @@ Furthermore, this approach can be used to predict primers compatible with tracki
 
 ::
 
-    usage: phagpcr.py [-h] [-f FASTA_FILE] [-o OUTPUT_DIR] [-b BLAST_DB]
-                    [-hg HUMAN_GENOME] [-s SEQUENCES_DIR] [-r {1,2,3}]
-                    [-nb PRIMER_NB] [-tm TM_OPTIMAL] [-sz SIZE_OPTIMAL]
-                    [-k {Quantinova,Invitrogen}] [-tm2 TM_SPECIFICITY]
+    usage: phagpcr.py [-h] [-f FASTA_FILE] 
+                    [-o OUTPUT_DIR] 
+                    [-b BLAST_DB]
+                    [-hg HUMAN_GENOME] 
+                    [-s SEQUENCES_DIR] 
+                    [-r {1,2,3}]
+                    [-nb PRIMER_NB] 
+                    [-tm TM_OPTIMAL] 
+                    [-sz SIZE_OPTIMAL]
+                    [-k {Quantinova,Invitrogen}] 
+                    [-tm2 TM_SPECIFICITY]
 
     Design primers using Primer3 and perform BLAST search on the designed
     primers
