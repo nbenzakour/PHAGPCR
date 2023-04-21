@@ -7,6 +7,7 @@ from argparse import ArgumentParser
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import SeqIO
+from termcolor import colored
 
 def parse_args():
     parser = ArgumentParser(description='Design primers using Primer3 and perform BLAST search on the designed primers')
@@ -87,32 +88,32 @@ def testing(args):
 
 def mkdir_outdir(output_dir):
     # Creating the output directory if not present
-    print('1. Creating output directory:', output_dir)
+    print(colored('1. Creating output directory:', "blue"), output_dir), 
     if not os.path.exists('{}'.format(output_dir)):
         os.makedirs('{}'.format(output_dir))
     else:
-        print('==> Output directory already exists. Carrying on...\n')
+        print(colored('==> Output directory already exists. Carrying on...\n',"yellow"))
 
 def readfile(fasta_file):
     # Read the FASTA file into a dictionary
-    print("2. Reading data in from ", fasta_file)
+    print(colored("2. Reading data in from ", "blue"), fasta_file)
     sequences = {}
     with open(fasta_file, 'r') as f:
-        current_seq = ''
+        current_seq = []
         current_header = ''
         for line in f:
             if line.startswith('>'):
                 if current_header:
-                    sequences[current_header] = current_seq
+                    sequences[current_header] = ''.join(current_seq)
                 current_header = line[1:].strip().replace(" ", "_")
-                current_seq = ''
+                current_seq = []
             else:
-                current_seq += line.strip()
-        sequences[current_header] = current_seq
-    return sequences     
+                current_seq.append(line.strip())
+        sequences[current_header] = ''.join(current_seq)
+    return sequences    
 
 def get_primers(header, seq, primer3_params):
-    print("Designing primers for ", header)
+    print(colored("Designing primers for ", "blue"), header)
     # if sequence is equal or greater to 500 bp, define a subregion to design primers (=minimum 200bp) 
     if len(seq) >= 500:
         start = 150
@@ -135,7 +136,7 @@ def get_primers(header, seq, primer3_params):
     return primer_results
 
 def parse_primers(primer_results, header):
-    target_name = header[:50].split(" ")[0].strip()
+    target_name = header[:55].split(" ")[0].strip()
     # Parse the primers
     i = 0
     while i < primer_results['PRIMER_PAIR_NUM_RETURNED']:       
@@ -167,37 +168,29 @@ def parse_primers(primer_results, header):
         i = i+1
     primers_df = pd.DataFrame(primers)
     return(primers_df)
-
+        
 def df_to_fasta(df, output_dir, output_fasta):
-    records = []
-    for index, row in df.iterrows():
-        seq_record = SeqRecord(Seq(row['left_primer_sequence']),
-                               id=row['left_primer_name'],
-                               description="")
-        records.append(seq_record)
-        seq_record = SeqRecord(Seq(row['right_primer_sequence']),
-                               id=row['right_primer_name'],
-                               description="")
-        records.append(seq_record)
-    with open(output_dir + "/" + output_fasta + ".fna", "w") as handle:
+    records = [SeqRecord(Seq(row['left_primer_sequence']), id=row['left_primer_name'], description="") for index, row in df.iterrows()] + \
+              [SeqRecord(Seq(row['right_primer_sequence']), id=row['right_primer_name'], description="") for index, row in df.iterrows()]
+    with open(f"{output_dir}/{output_fasta}.fna", "w") as handle:
         SeqIO.write(records, handle, 'fasta')
 
 def run_mfe_index(db):
     subprocess.call('mfeprimer index -i {}'.format(db), shell=True)
 
 def run_mfe(primers, db, output_dir, suffix, tm_spec):
-    print("Running MFEprimer full analysis for " + primers + " ...")
-    subprocess.call('mfeprimer -i {} -d {} -o {}/mfe_results_{}.txt -S 500 -t {}'.format(primers, db, output_dir, suffix, tm_spec), shell=True)
+    print(colored("Running MFEprimer full analysis for ", "blue") + primers + " ...")
+    subprocess.call(f'mfeprimer -i {primers} -d {db} -o {output_dir}/mfe_results_{suffix}.txt -S 500 -t {tm_spec} --misMatch 1 --misStart 2 --misEnd 9', shell=True)
     
 def run_mfe_dimers(primers, output_dir, suffix):
-    print("Screening for dimers.")
-    print("Running MFEprimer dimers...\n")
-    subprocess.call('mfeprimer dimer -i {} --dg -10 -o {}/mfe_dimer_results_{}.txt'.format(primers, output_dir, suffix), shell=True)
+    print(colored("Screening for dimers.", "blue"))
+    print(colored("Running MFEprimer dimers...\n", "blue"))
+    subprocess.call(f'mfeprimer dimer -i {primers} --dg -10 -o {output_dir}/mfe_dimer_results_{suffix}.txt', shell=True)
 
 def run_mfe_spec(primers, db, output_dir, suffix, tm_spec):
-    print("Screening for specificity against Blast database: " + str(db))
-    print("Running MFEprimer specificity...\n")
-    subprocess.call('mfeprimer spec -i {} -d {} -o {}/mfe_spec_results_{}.txt -S 500 -t {}'.format(primers, db, output_dir, suffix, tm_spec), shell=True)   
+    print(colored("Screening for specificity against Blast database: ", "blue") + str(db))
+    print(colored("Running MFEprimer specificity...\n", "blue"))
+    subprocess.call(f'mfeprimer spec -i {primers} -d {db} -o {output_dir}/mfe_spec_results_{suffix}.txt -S 500 -t {tm_spec}', shell=True)   
 
 def parse_MFEprimers_file(filename):
     # read the file and split it into lines
@@ -235,7 +228,7 @@ def parse_MFEprimers_file(filename):
         #print(df, "\n")
         return df
     else:
-        print("==> No primer pairs were found to bind and produce amplicons (within the limit specified - default 500bp.)")
+        print(colored("==> No primer pairs were found to bind and produce amplicons (within the limit specified - default 500bp.)", "yellow"))
 
 def parse_MFEprimers_dimer_file(filename):
     # read the file and split it into lines
@@ -265,7 +258,7 @@ def parse_MFEprimers_dimer_file(filename):
         #print(df, "\n")
         return df
     else:
-        print("==> No primer pairs were found to form dimers (within the limit specified)")
+        print(colored("==> No primer pairs were found to form dimers (within the limit specified)", "yellow"))
 
 if __name__ == '__main__':
     
@@ -307,11 +300,11 @@ if __name__ == '__main__':
         
         # create prefiltered primers file
         all_primers_df.to_csv(output_dir + '/prefiltered_primers_file.csv', index=False, sep ='\t')
-        print('\nPrefiltered primers stored in: ', output_dir + '/prefiltered_primers_file.csv')
+        print(colored('\nPrefiltered primers stored in: ', "yellow"), output_dir + '/prefiltered_primers_file.csv')
         
         # create multifasta file with all predicted priners
         df_to_fasta(all_primers_df, output_dir, 'all_primers')
-        print('Prefiltered primers in fasta format stored in: ', output_dir + '/all_primers.fna')
+        print(colored('Prefiltered primers in fasta format stored in: ', "yellow"), output_dir + '/all_primers.fna')
  
         print("\n--------------------------------------------------------")               
         print("Step 2 - test specificity of primers using MFEprimer against custom database")
@@ -319,7 +312,7 @@ if __name__ == '__main__':
         if blast_db != None:
             ## by default, mfeprimer_index will check if the indexing has already been performed before proceeding
             run_mfe_index(blast_db)
-            print("Screening for all features and specificity against Blast database: " + str(blast_db) + "\n")
+            print(colored("Screening for all features and specificity against Blast database: ", "blue") + str(blast_db) + "\n")
             # run_mfe(output_dir + '/all_primers.fna',blast_db,output_dir,'blastdb', tm_spec)
             # testing running MFE on separate fasta files         
             grouped = all_primers_df.groupby('left_primer_name')
@@ -334,7 +327,7 @@ if __name__ == '__main__':
             df_local_screening.to_csv(output_dir + '/mfe_screening_results_against_local_database_summary.csv', sep='\t', index=False)
             print(df_local_screening.groupby(df_local_screening['Fp'].str[:-1])['Max_hit_per_pair'].unique())
         else:
-            print("No Blast database provided")
+            print(colored("No Blast database provided", "yellow"))
             
         print("\n--------------------------------------------------------")               
         print("Step 3 - test specificity of primers using MFEprimer against human genome")
@@ -343,12 +336,12 @@ if __name__ == '__main__':
             # run MFEprimer specificity on combined file against human genome
             run_mfe_spec(output_dir + '/all_primers.fna','/data/db/blastdb/hg38/GCA_000001405.29_GRCh38.p14_genomic.fna',output_dir,'hg38', tm_spec)
             df_human_spec = parse_MFEprimers_file(output_dir + '/mfe_spec_results_hg38.txt')
-            if not df_human_spec.empty :
+            if df_human_spec is not None and not df_human_spec.empty:
                 df_human_spec = df_human_spec.drop(['Unique_hit', 'Max_hit_per_pair'], axis=1)
                 df_human_spec.to_csv(output_dir + '/mfe_spec_results_hg38_summary.csv', sep='\t', index=False)
-            print(df_human_spec)
+                print(df_human_spec)
         else:
-            print("No Human Genome screening required")
+            print(colored("No Human Genome screening required", "yellow"))
  
         if runtype == 2:
             print("\n--------------------------------------------------------")               
@@ -357,9 +350,9 @@ if __name__ == '__main__':
             # run MFEprimer dimers on combined file 
             run_mfe_dimers(output_dir + '/all_primers.fna', output_dir, 'all_primers')
             df_cocktail_dimers = parse_MFEprimers_dimer_file(output_dir + '/mfe_dimer_results_all_primers.txt')
-            if not df_human_spec.empty :
+            if df_cocktail_dimers is not None and not df_cocktail_dimers.empty:
                 df_cocktail_dimers.to_csv(output_dir + '/mfe_dimer_results_all_primers_summary.csv', sep='\t', index=False)
-            print(df_cocktail_dimers)
+                print(df_cocktail_dimers)
            
         print("\n--------------------------------------------------------")
         print("Final step - summarising all results")
