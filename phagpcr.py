@@ -18,7 +18,7 @@ def parse_args():
                         type=str, 
                         help='Directory where the results will be saved')
     parser.add_argument('-b', '--blast_db', 
-                        type=str, default=None, required=False, 
+                        type=str, default="~/REPOS/PHAGPCR/test/phiau_all_phages_20230418_nr.fna", required=False, 
                         help='BLAST database for searching the primers (optional)')
     parser.add_argument('-hg', '--human_genome', 
                         type=bool, default=False, required=False, 
@@ -138,6 +138,7 @@ def get_primers(header, seq, primer3_params):
 def parse_primers(primer_results, header):
     target_name = header[:55].split(" ")[0].strip()
     # Parse the primers
+    primers = []
     i = 0
     while i < primer_results['PRIMER_PAIR_NUM_RETURNED']:       
         primers.append({'header': header, 
@@ -167,6 +168,7 @@ def parse_primers(primer_results, header):
                         'pair_COMPL_END_TH' : primer_results['PRIMER_PAIR_' + str(i) + '_COMPL_END_TH'],})
         i = i+1
     primers_df = pd.DataFrame(primers)
+    primers_df = primers_df.round(2)
     return(primers_df)
         
 def df_to_fasta(df, output_dir, output_fasta):
@@ -194,41 +196,58 @@ def run_mfe_spec(primers, db, output_dir, suffix, tm_spec):
 
 def parse_MFEprimers_file(filename):
     # read the file and split it into lines
-    with open(filename) as f:
-        lines = f.read().splitlines()
-    
-    # find the line that indicates the number of potential amplicons
-    start_line = [i for i, line in enumerate(lines) if line.startswith("Descriptions of [")][0]
+    try:
+        with open(filename) as f:
+            lines = f.read().splitlines()
+        
+        # find the line that indicates the number of potential amplicons
+        start_line_matches = [i for i, line in enumerate(lines) if line.startswith("Descriptions of [")]
+        if not start_line_matches:
+            print(colored(f"==> Unexpected file format in {filename}: 'Descriptions of [' line not found", "yellow"))
+            return pd.DataFrame()
+        
+        start_line = start_line_matches[0]
 
-    # count the number of amplicons
-    amplicons_count = int(lines[start_line].split(" ")[3])
-    
-    if amplicons_count >= 1:
-        # extract the details of each amplicon
-        amplicon_details = []
-        for i in range(amplicons_count):
-            amplicon_id = "Amp " + str(i+1)
-            amp_line = [j for j, line in enumerate(lines) if line.startswith(amplicon_id)][0]
-            amplicon_fp = lines[amp_line].split(" ")[2].strip()
-            amplicon_rp = lines[amp_line].split(" ")[4].strip()
-            amplicon_hit = lines[amp_line].split("==>")[1].strip()
-            amplicon_size = int(lines[amp_line + 2].split("=")[1].split()[0])
-            amplicon_gc = float(lines[amp_line + 2].split("=")[2].strip("%"))
-            amplicon_fpTm = float(lines[amp_line + 3].split("=")[1].strip("°C, Delta G "))
-            amplicon_rpTm = float(lines[amp_line + 4].split("=")[1].strip("°C, Delta G "))
-            amplicon_fpDg = float(lines[amp_line + 3].split("=")[2].strip("kcal/mol"))
-            amplicon_rpDg = float(lines[amp_line + 4].split("=")[2].strip("kcal/mol"))
-            amplicon_binding_sites = lines[amp_line + 5].split()[2] + "-" + lines[amp_line + 5].split()[2]
-            amplicon_details.append((amplicon_id, amplicon_fp, amplicon_rp, amplicon_hit, amplicon_size, amplicon_gc, amplicon_fpTm, amplicon_rpTm, amplicon_fpDg, amplicon_rpDg, amplicon_binding_sites))    
-        # create a Pandas DataFrame with the amplicon details
-        df = pd.DataFrame(amplicon_details, columns=["Amplicon ID", "Fp", "Rp", "Hit ID", "Size", "GC", "Fp Tm", "Rp Tm", "Fp Dg", "Rp Dg", "Binding Sites"])
-        df['Header'] = df.apply(lambda x: x['Fp'].rsplit('_', 1)[0], axis=1)
-        df['Max_hit_per_pair'] = df.apply(lambda x: amplicons_count, axis=1)
-        df['Unique_hit'] = df.apply(lambda x: 'No' if amplicons_count >1 else 'Yes', axis=1)
-        #print(df, "\n")
-        return df
-    else:
-        print(colored("==> No primer pairs were found to bind and produce amplicons (within the limit specified - default 500bp.)", "yellow"))
+        # count the number of amplicons
+        amplicons_count = int(lines[start_line].split(" ")[3])
+        
+        if amplicons_count >= 1:
+            # extract the details of each amplicon
+            amplicon_details = []
+            for i in range(amplicons_count):
+                amplicon_id = "Amp " + str(i+1)
+                amp_line_matches = [j for j, line in enumerate(lines) if line.startswith(amplicon_id)]
+                if not amp_line_matches:
+                    print(colored(f"==> Expected amplicon {amplicon_id} not found in {filename}", "yellow"))
+                    continue
+                amp_line = amp_line_matches[0]
+                amplicon_fp = lines[amp_line].split(" ")[2].strip()
+                amplicon_rp = lines[amp_line].split(" ")[4].strip()
+                amplicon_hit = lines[amp_line].split("==>")[1].strip()
+                amplicon_size = int(lines[amp_line + 2].split("=")[1].split()[0])
+                amplicon_gc = round(float(lines[amp_line + 2].split("=")[2].strip("%")), 2)
+                amplicon_fpTm = round(float(lines[amp_line + 3].split("=")[1].strip("°C, Delta G ")), 2)
+                amplicon_rpTm = round(float(lines[amp_line + 4].split("=")[1].strip("°C, Delta G ")), 2)
+                amplicon_fpDg = round(float(lines[amp_line + 3].split("=")[2].strip("kcal/mol")), 2)
+                amplicon_rpDg = round(float(lines[amp_line + 4].split("=")[2].strip("kcal/mol")), 2)
+                amplicon_binding_sites = lines[amp_line + 5].split()[2] + "-" + lines[amp_line + 5].split()[2]
+                amplicon_details.append((amplicon_id, amplicon_fp, amplicon_rp, amplicon_hit, amplicon_size, amplicon_gc, amplicon_fpTm, amplicon_rpTm, amplicon_fpDg, amplicon_rpDg, amplicon_binding_sites))    
+            # create a Pandas DataFrame with the amplicon details
+            if amplicon_details:
+                df = pd.DataFrame(amplicon_details, columns=["Amplicon ID", "Fp", "Rp", "Hit ID", "Size", "GC", "Fp Tm", "Rp Tm", "Fp Dg", "Rp Dg", "Binding Sites"])
+                df['Header'] = df.apply(lambda x: x['Fp'].rsplit('_', 1)[0], axis=1)
+                df['Max_hit_per_pair'] = df.apply(lambda x: amplicons_count, axis=1)
+                df['Unique_hit'] = df.apply(lambda x: 'No' if amplicons_count >1 else 'Yes', axis=1)
+                #print(df, "\n")
+                return df
+            else:
+                return pd.DataFrame()
+        else:
+            print(colored("==> No primer pairs were found to bind and produce amplicons (within the limit specified - default 500bp.)", "yellow"))
+            return pd.DataFrame()
+    except Exception as e:
+        print(colored(f"==> Error parsing file {filename}: {str(e)}", "red"))
+        return pd.DataFrame()
 
 def parse_MFEprimers_dimer_file(filename):
     # read the file and split it into lines
@@ -250,7 +269,7 @@ def parse_MFEprimers_dimer_file(filename):
             dim_fp = lines[dim_line].split(" ")[2].strip()
             dim_rp = lines[dim_line].split(" ")[4].strip()
             dim_score = lines[dim_line + 2].split(" ")[1].strip(",")
-            dim_Dg = float(lines[dim_line + 2].split("=")[1].strip("kcal/mol"))
+            dim_Dg = round(float(lines[dim_line + 2].split("=")[1].strip("kcal/mol")), 2)
             dimer_details.append((dim_id, dim_fp, dim_rp, dim_score, dim_Dg))    
         # create a Pandas DataFrame with the amplicon details
         df = pd.DataFrame(dimer_details, columns=["Dimer ID", "Fp", "Rp", "Score", "Dg"])
@@ -296,15 +315,15 @@ if __name__ == '__main__':
         for header, seq in sequences.items():
             primer3_params = update_primer3(tm, primer_size, primer_nb, kit)
             primer_results = get_primers(header, seq, primer3_params)         
-            all_primers_df = parse_primers(primer_results, header)
+            prefiltered_primers_df = parse_primers(primer_results, header)
         
         # create prefiltered primers file
-        all_primers_df.to_csv(output_dir + '/prefiltered_primers_file.csv', index=False, sep ='\t')
+        prefiltered_primers_df.to_csv(output_dir + '/prefiltered_primers_file.csv', index=False, sep ='\t')
         print(colored('\nPrefiltered primers stored in: ', "yellow"), output_dir + '/prefiltered_primers_file.csv')
         
         # create multifasta file with all predicted priners
-        df_to_fasta(all_primers_df, output_dir, 'all_primers')
-        print(colored('Prefiltered primers in fasta format stored in: ', "yellow"), output_dir + '/all_primers.fna')
+        df_to_fasta(prefiltered_primers_df, output_dir, 'prefiltered_primers')
+        print(colored('Prefiltered primers in fasta format stored in: ', "yellow"), output_dir + '/prefiltered_primers.fna')
  
         print("\n--------------------------------------------------------")               
         print("Step 2 - test specificity of primers using MFEprimer against custom database")
@@ -313,19 +332,26 @@ if __name__ == '__main__':
             ## by default, mfeprimer_index will check if the indexing has already been performed before proceeding
             run_mfe_index(blast_db)
             print(colored("Screening for all features and specificity against Blast database: ", "blue") + str(blast_db) + "\n")
-            # run_mfe(output_dir + '/all_primers.fna',blast_db,output_dir,'blastdb', tm_spec)
+            # run_mfe(output_dir + '/prefiltered_primers.fna',blast_db,output_dir,'blastdb', tm_spec)
             # testing running MFE on separate fasta files         
-            grouped = all_primers_df.groupby('left_primer_name')
+            grouped = prefiltered_primers_df.groupby('left_primer_name')
             df_local_screening = pd.DataFrame()
             for name, group in grouped:
                 df_to_fasta(grouped.get_group(name), output_dir, name[:-1])
                 run_mfe(output_dir + '/' + str(name[:-1]) + '.fna', blast_db, output_dir + '/indiv_results', str(name[:-1]), tm_spec)
                 local_screening = parse_MFEprimers_file(output_dir + '/indiv_results/mfe_results_' + str(name[:-1]) + '.txt')
-                df_local_screening = pd.concat([df_local_screening, local_screening], ignore_index=True)
+                if local_screening is not None and not local_screening.empty:
+                    df_local_screening = pd.concat([df_local_screening, local_screening], ignore_index=True)
                 os.remove(output_dir + '/' + str(name[:-1]) + '.fna')
             print(df_local_screening)
-            df_local_screening.to_csv(output_dir + '/mfe_screening_results_against_local_database_summary.csv', sep='\t', index=False)
-            print(df_local_screening.groupby(df_local_screening['Fp'].str[:-1])['Max_hit_per_pair'].unique())
+            if not df_local_screening.empty:
+                df_local_screening.to_csv(output_dir + '/mfe_screening_results_against_local_database_summary.csv', sep='\t', index=False)
+                if 'Fp' in df_local_screening.columns:
+                    print(df_local_screening.groupby(df_local_screening['Fp'].str[:-1])['Max_hit_per_pair'].unique())
+                else:
+                    print(colored("==> No 'Fp' column found in screening results", "yellow"))
+            else:
+                print(colored("==> No screening results to save. DataFrame is empty.", "yellow"))
         else:
             print(colored("No Blast database provided", "yellow"))
             
@@ -334,7 +360,7 @@ if __name__ == '__main__':
         print("--------------------------------------------------------")    
         if human_genome == True:
             # run MFEprimer specificity on combined file against human genome
-            run_mfe_spec(output_dir + '/all_primers.fna','/data/db/blastdb/hg38/GCA_000001405.29_GRCh38.p14_genomic.fna',output_dir,'hg38', tm_spec)
+            run_mfe_spec(output_dir + '/prefiltered_primers.fna','/data/db/blastdb/hg38/GCA_000001405.29_GRCh38.p14_genomic.fna',output_dir,'hg38', tm_spec)
             df_human_spec = parse_MFEprimers_file(output_dir + '/mfe_spec_results_hg38.txt')
             if df_human_spec is not None and not df_human_spec.empty:
                 df_human_spec = df_human_spec.drop(['Unique_hit', 'Max_hit_per_pair'], axis=1)
@@ -348,10 +374,10 @@ if __name__ == '__main__':
             print("Step 4 - test primer compatibility for multiplex and cocktail detection")
             print("--------------------------------------------------------")               
             # run MFEprimer dimers on combined file 
-            run_mfe_dimers(output_dir + '/all_primers.fna', output_dir, 'all_primers')
-            df_cocktail_dimers = parse_MFEprimers_dimer_file(output_dir + '/mfe_dimer_results_all_primers.txt')
+            run_mfe_dimers(output_dir + '/prefiltered_primers.fna', output_dir, 'prefiltered_primers')
+            df_cocktail_dimers = parse_MFEprimers_dimer_file(output_dir + '/mfe_dimer_results_prefiltered_primers.txt')
             if df_cocktail_dimers is not None and not df_cocktail_dimers.empty:
-                df_cocktail_dimers.to_csv(output_dir + '/mfe_dimer_results_all_primers_summary.csv', sep='\t', index=False)
+                df_cocktail_dimers.to_csv(output_dir + '/mfe_dimer_results_prefiltered_primers_summary.csv', sep='\t', index=False)
                 print(df_cocktail_dimers)
            
         print("\n--------------------------------------------------------")
