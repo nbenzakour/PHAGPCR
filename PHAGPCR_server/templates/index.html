@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PCR Primer Design Tool</title>
+</head>
+<body>
+    <h1>PCR Primer Design Tool</h1>
+    <form method="post" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".fasta,.fa,.seq">
+        <br><br>
+        <label for="output_dir">Output Directory:</label>
+        <input type="text" name="output_dir" value="output">
+        <br><br>
+        <label for="blast_db">BLAST Database:</label>
+        <input type="text" name="blast_db">
+        <br><br>
+        <label for="human_genome">Screen against Human Genome:</label>
+        <select name="human_genome">
+            <option value="False">No</option>
+            <option value="True">Yes</option>
+        </select>
+        <br><br>
+        <label for="runtype">Run Type:</label>
+        <select name="runtype">
+            <option value="1">1 - Supervised design providing target</option>
+            <option value="2">2 - Cocktail detection with multiplex primers</option>
+            <option value="3">3 - Unsupervised design providing phage genome</option>
+        </select>
+        <br><br>
+        <label for="primer_nb">Number of Primer Pairs:</label>
+        <input type="number" name="primer_nb" value="1" min="1">
+        <br><br>
+        <label for="tm_optimal">Optimal Tm:</label>
+        <input type="number" name="tm_optimal" value="60">
+        <br><br>
+        <label for="size_optimal">Optimal Primer Size:</label>
+        <input type="number" name="size_optimal" value="20">
+        <br><br>
+        <label for="kit">qPCR Kit:</label>
+        <select name="kit">
+            <option value="">None</option>
+            <option value="Quantinova">Quantinova</option>
+            <option value="Invitrogen">Invitrogen</option>
+        </select>
+        <br><br>
+        <label for="tm_specificity">Tm Specificity:</label>
+        <input type="number" name="tm_specificity" value="40">
+        <br><br>
+        <input type="submit" value="Design Primers">
+    </form>
+</body>
+</html>

@@ -1,0 +1,68 @@
+from flask import Flask, render_template, request, send_file
+import os
+from werkzeug.utils import secure_filename
+import phagpcr  # Import your phagpcr module
+
+app = Flask(__name__)
+
+# Ensure the upload folder exists
+UPLOAD_FOLDER = 'uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        # Check if a file was uploaded
+        if 'file' not in request.files:
+            return 'No file part'
+        file = request.files['file']
+        if file.filename == '':
+            return 'No selected file'
+        
+        if file:
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            
+            # Get form parameters
+            output_dir = request.form.get('output_dir', 'output')
+            blast_db = request.form.get('blast_db', '')
+            human_genome = request.form.get('human_genome', 'False') == 'True'
+            runtype = int(request.form.get('runtype', 1))
+            primer_nb = int(request.form.get('primer_nb', 1))
+            tm_optimal = int(request.form.get('tm_optimal', 60))
+            size_optimal = int(request.form.get('size_optimal', 20))
+            kit = request.form.get('kit', '')
+            tm_specificity = int(request.form.get('tm_specificity', 40))
+            
+            # Create a mock args object to pass to your phagpcr functions
+            class Args:
+                pass
+            args = Args()
+            args.fasta_file = filepath
+            args.output_dir = output_dir
+            args.blast_db = blast_db
+            args.human_genome = human_genome
+            args.runtype = runtype
+            args.primer_nb = primer_nb
+            args.tm_optimal = tm_optimal
+            args.size_optimal = size_optimal
+            args.kit = kit
+            args.tm_specificity = tm_specificity
+            
+            # Call your phagpcr functions here
+            phagpcr.testing(args)
+            phagpcr.mkdir_outdir(output_dir)
+            sequences = phagpcr.readfile(filepath)
+            
+            # Add more function calls as needed
+            
+            return 'Processing complete. Check the output directory.'
+    
+    return render_template('index.html')
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
