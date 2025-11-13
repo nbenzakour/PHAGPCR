@@ -14,10 +14,11 @@ Usage:
 import subprocess
 import os
 import os.path
+from typing import Dict, List, Tuple, Optional
 
 import pandas as pd
 import primer3
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import SeqIO
@@ -31,7 +32,7 @@ DEFAULT_HG38_PATH = '/data/db/blastdb/hg38/\
 GCA_000001405.29_GRCh38.p14_genomic.fna'
 MFEPRIMER_BIN = 'bin/mfeprimer'  # Path to mfeprimer executable
 
-def parse_args():
+def parse_args() -> Namespace:
     """Parse command line arguments."""
     parser = ArgumentParser(
         description='Design primers using Primer3 and perform \
@@ -80,7 +81,8 @@ version hg38 (optional)')
                         help='Minimum Tm for MFEprimer matches')
     return parser.parse_args()
 
-def update_primer3(tm, primer_size, primer_nb, kit):
+def update_primer3(tm: int, primer_size: int, primer_nb: int,
+                   kit: str) -> Dict:
     """Configure Primer3 parameters for primer design."""
     primer3_params = {
         # Basic parameters
@@ -119,7 +121,7 @@ def update_primer3(tm, primer_size, primer_nb, kit):
     }
     return primer3_params
 
-def testing(args):
+def testing(args: Namespace) -> None:
     """Validate input arguments."""
     # verify fasta file exists
     if not os.path.isfile(args.fasta_file):
@@ -131,7 +133,7 @@ def testing(args):
         raise PermissionError(f'Cannot read fasta file: \
 {args.fasta_file}')
 
-def mkdir_outdir(output_dir):
+def mkdir_outdir(output_dir: str) -> None:
     """Create output directory if it doesn't exist."""
     print(colored('1. Creating output directory:', "blue"), output_dir),
     if not os.path.exists('{}'.format(output_dir)):
@@ -140,7 +142,7 @@ def mkdir_outdir(output_dir):
         print(colored('==> Output directory already exists. \
 Carrying on...\n', "yellow"))
 
-def readfile(fasta_file):
+def readfile(fasta_file: str) -> Dict[str, str]:
     """Read FASTA file into a dictionary of sequences."""
     print(colored("2. Reading data in from ", "blue"), fasta_file)
     sequences = {}
@@ -166,7 +168,7 @@ def readfile(fasta_file):
     except IOError as e:
         raise IOError(f"Error reading file {fasta_file}: {str(e)}")    
 
-def get_primers(header, seq, primer3_params):
+def get_primers(header: str, seq: str, primer3_params: Dict) -> Dict:
     """Design primers for given sequence using Primer3."""
     print(colored("Designing primers for ", "blue"), header)
     # For long sequences, define subregion to avoid terminal regions
@@ -191,7 +193,7 @@ def get_primers(header, seq, primer3_params):
         primer3_input, primer3_params)
     return primer_results
 
-def parse_primers(primer_results, header):
+def parse_primers(primer_results: Dict, header: str) -> pd.DataFrame:
     """Parse Primer3 results into a structured DataFrame."""
     target_name = header[:TARGET_NAME_MAX_LENGTH].split(" ")[0].strip()
     primers = []
@@ -244,7 +246,8 @@ def parse_primers(primer_results, header):
     primers_df = primers_df.round(2)
     return primers_df
         
-def df_to_fasta(df, output_dir, output_fasta):
+def df_to_fasta(df: pd.DataFrame, output_dir: str,
+                 output_fasta: str) -> None:
     """Convert DataFrame of primers to FASTA format."""
     left_records = [
         SeqRecord(Seq(row['left_primer_sequence']),
@@ -260,11 +263,12 @@ def df_to_fasta(df, output_dir, output_fasta):
     with open(f"{output_dir}/{output_fasta}.fna", "w") as handle:
         SeqIO.write(records, handle, 'fasta')
 
-def run_mfe_index(db):
+def run_mfe_index(db: str) -> None:
     """Index database for MFEprimer analysis."""
     subprocess.run([MFEPRIMER_BIN, 'index', '-i', db], check=True)
 
-def run_mfe(primers, db, output_dir, suffix, tm_spec):
+def run_mfe(primers: str, db: str, output_dir: str,
+            suffix: str, tm_spec: int) -> None:
     """Run MFEprimer full analysis on primers against database."""
     print(colored("Running MFEprimer full analysis for ", "blue") +
           primers + " ...")
@@ -275,7 +279,7 @@ def run_mfe(primers, db, output_dir, suffix, tm_spec):
         '--misStart', '2', '--misEnd', '9'
     ], check=True)
     
-def run_mfe_dimers(primers, output_dir, suffix):
+def run_mfe_dimers(primers: str, output_dir: str, suffix: str) -> None:
     """Run MFEprimer dimer analysis to detect primer interactions."""
     print(colored("Screening for dimers.", "blue"))
     print(colored("Running MFEprimer dimers...\n", "blue"))
@@ -285,7 +289,8 @@ def run_mfe_dimers(primers, output_dir, suffix):
         '--dg', '-10', '-o', output_file
     ], check=True)
 
-def run_mfe_spec(primers, db, output_dir, suffix, tm_spec):
+def run_mfe_spec(primers: str, db: str, output_dir: str,
+                 suffix: str, tm_spec: int) -> None:
     """Run MFEprimer specificity check against database."""
     print(colored("Screening for specificity against Blast database: ",
                   "blue") + str(db))
@@ -296,8 +301,8 @@ def run_mfe_spec(primers, db, output_dir, suffix, tm_spec):
         '-o', output_file, '-S', '500', '-t', str(tm_spec)
     ], check=True)   
 
-def parse_MFEprimers_file(filename):
-    # read the file and split it into lines
+def parse_MFEprimers_file(filename: str) -> Optional[pd.DataFrame]:
+    """Parse MFEprimer output file into DataFrame."""
     try:
         with open(filename) as f:
             lines = f.read().splitlines()
@@ -351,7 +356,7 @@ def parse_MFEprimers_file(filename):
         print(colored(f"==> Error parsing file {filename}: {str(e)}", "red"))
         return pd.DataFrame()
 
-def parse_MFEprimers_dimer_file(filename):
+def parse_MFEprimers_dimer_file(filename: str) -> Optional[pd.DataFrame]:
     """Parse MFEprimer dimer output file into DataFrame."""
     try:
         with open(filename) as f:
