@@ -5,7 +5,6 @@
 biopython>=1.81         # Sequence parsing and manipulation
 pandas>=2.0.0           # Data analysis and manipulation
 primer3-py>=2.0.0       # Primer3 Python bindings for primer design
-termcolor>=2.0.0        # Colored terminal output
 
 # External dependencies (not Python packages)
 # MFEprimer 3.2.7 - Binary must be placed in bin/mfeprimer

@@ -14,6 +14,7 @@ Usage:
 import subprocess
 import os
 import os.path
+import logging
 from typing import Dict, List, Tuple, Optional
 
 import pandas as pd
@@ -22,7 +23,9 @@ from argparse import ArgumentParser, Namespace
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import SeqIO
-from termcolor import colored
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Module constants
 SEQUENCE_SUBREGION_MARGIN = 150  # bp to exclude from each end
@@ -79,7 +82,35 @@ version hg38 (optional)')
     parser.add_argument('-tm2', '--tm_specificity',
                         type=int, default=40, required=False,
                         help='Minimum Tm for MFEprimer matches')
+    parser.add_argument('-v', '--verbose',
+                        action='store_true',
+                        help='Enable verbose logging output')
     return parser.parse_args()
+
+def setup_logging(verbose: bool = False, log_file: Optional[str] = None) \
+        -> None:
+    """
+    Configure logging for the application.
+
+    Args:
+        verbose: If True, set logging level to DEBUG
+        log_file: Optional path to log file
+    """
+    level = logging.DEBUG if verbose else logging.INFO
+    log_format = '%(asctime)s - %(levelname)s - %(message)s'
+    date_format = '%Y-%m-%d %H:%M:%S'
+
+    handlers = [logging.StreamHandler()]
+    if log_file:
+        handlers.append(logging.FileHandler(log_file))
+
+    logging.basicConfig(
+        level=level,
+        format=log_format,
+        datefmt=date_format,
+        handlers=handlers,
+        force=True
+    )
 
 def update_primer3(tm: int, primer_size: int, primer_nb: int,
                    kit: str) -> Dict:
@@ -135,16 +166,15 @@ def testing(args: Namespace) -> None:
 
 def mkdir_outdir(output_dir: str) -> None:
     """Create output directory if it doesn't exist."""
-    print(colored('1. Creating output directory:', "blue"), output_dir),
+    logger.info(f'Creating output directory: {output_dir}')
     if not os.path.exists('{}'.format(output_dir)):
         os.makedirs('{}'.format(output_dir))
     else:
-        print(colored('==> Output directory already exists. \
-Carrying on...\n', "yellow"))
+        logger.warning(f'Output directory already exists: {output_dir}')
 
 def readfile(fasta_file: str) -> Dict[str, str]:
     """Read FASTA file into a dictionary of sequences."""
-    print(colored("2. Reading data in from ", "blue"), fasta_file)
+    logger.info(f'Reading data from: {fasta_file}')
     sequences = {}
     try:
         with open(fasta_file, 'r') as f:
@@ -170,7 +200,7 @@ def readfile(fasta_file: str) -> Dict[str, str]:
 
 def get_primers(header: str, seq: str, primer3_params: Dict) -> Dict:
     """Design primers for given sequence using Primer3."""
-    print(colored("Designing primers for ", "blue"), header)
+    logger.info(f'Designing primers for: {header}')
     # For long sequences, define subregion to avoid terminal regions
     if len(seq) >= MIN_SEQUENCE_FOR_SUBREGION:
         start = SEQUENCE_SUBREGION_MARGIN
@@ -270,8 +300,7 @@ def run_mfe_index(db: str) -> None:
 def run_mfe(primers: str, db: str, output_dir: str,
             suffix: str, tm_spec: int) -> None:
     """Run MFEprimer full analysis on primers against database."""
-    print(colored("Running MFEprimer full analysis for ", "blue") +
-          primers + " ...")
+    logger.info(f"Running MFEprimer full analysis for {primers + " ..."}")
     output_file = f"{output_dir}/mfe_results_{suffix}.txt"
     subprocess.run([
         MFEPRIMER_BIN, '-i', primers, '-d', db, '-o', output_file,
@@ -281,8 +310,8 @@ def run_mfe(primers: str, db: str, output_dir: str,
     
 def run_mfe_dimers(primers: str, output_dir: str, suffix: str) -> None:
     """Run MFEprimer dimer analysis to detect primer interactions."""
-    print(colored("Screening for dimers.", "blue"))
-    print(colored("Running MFEprimer dimers...\n", "blue"))
+    logger.info("Screening for dimers.")
+    logger.info("Running MFEprimer dimers...\n")
     output_file = f"{output_dir}/mfe_dimer_results_{suffix}.txt"
     subprocess.run([
         MFEPRIMER_BIN, 'dimer', '-i', primers,
@@ -292,9 +321,9 @@ def run_mfe_dimers(primers: str, output_dir: str, suffix: str) -> None:
 def run_mfe_spec(primers: str, db: str, output_dir: str,
                  suffix: str, tm_spec: int) -> None:
     """Run MFEprimer specificity check against database."""
-    print(colored("Screening for specificity against Blast database: ",
-                  "blue") + str(db))
-    print(colored("Running MFEprimer specificity...\n", "blue"))
+    logger.info(f"Screening for specificity against Blast database: "
+                f"{db}")
+    logger.info("Running MFEprimer specificity...")
     output_file = f"{output_dir}/mfe_spec_results_{suffix}.txt"
     subprocess.run([
         MFEPRIMER_BIN, 'spec', '-i', primers, '-d', db,
@@ -310,7 +339,7 @@ def parse_MFEprimers_file(filename: str) -> Optional[pd.DataFrame]:
         # find the line that indicates the number of potential amplicons
         start_line_matches = [i for i, line in enumerate(lines) if line.startswith("Descriptions of [")]
         if not start_line_matches:
-            print(colored(f"==> Unexpected file format in {filename}: 'Descriptions of [' line not found", "yellow"))
+            logger.warning(f"==> Unexpected file format in {filename}: 'Descriptions of [' line not found")
             return pd.DataFrame()
         
         start_line = start_line_matches[0]
@@ -325,7 +354,7 @@ def parse_MFEprimers_file(filename: str) -> Optional[pd.DataFrame]:
                 amplicon_id = "Amp " + str(i+1)
                 amp_line_matches = [j for j, line in enumerate(lines) if line.startswith(amplicon_id)]
                 if not amp_line_matches:
-                    print(colored(f"==> Expected amplicon {amplicon_id} not found in {filename}", "yellow"))
+                    logger.warning(f"==> Expected amplicon {amplicon_id} not found in {filename}")
                     continue
                 amp_line = amp_line_matches[0]
                 amplicon_fp = lines[amp_line].split(" ")[2].strip()
@@ -350,10 +379,10 @@ def parse_MFEprimers_file(filename: str) -> Optional[pd.DataFrame]:
             else:
                 return pd.DataFrame()
         else:
-            print(colored("==> No primer pairs were found to bind and produce amplicons (within the limit specified - default 500bp.)", "yellow"))
+            logger.warning("==> No primer pairs were found to bind and produce amplicons (within the limit specified - default 500bp.)")
             return pd.DataFrame()
     except Exception as e:
-        print(colored(f"==> Error parsing file {filename}: {str(e)}", "red"))
+        logger.error(f"==> Error parsing file {filename}: {str(e)}")
         return pd.DataFrame()
 
 def parse_MFEprimers_dimer_file(filename: str) -> Optional[pd.DataFrame]:
@@ -366,8 +395,8 @@ def parse_MFEprimers_dimer_file(filename: str) -> Optional[pd.DataFrame]:
         start_line_matches = [i for i, line in enumerate(lines)
                               if line.startswith("Dimer List ")]
         if not start_line_matches:
-            print(colored(f"==> Unexpected file format in {filename}: \
-'Dimer List' line not found", "yellow"))
+            logger.warning(f"==> Unexpected file format in {filename}: \
+'Dimer List' line not found")
             return pd.DataFrame()
 
         start_line = start_line_matches[0]
@@ -383,8 +412,8 @@ def parse_MFEprimers_dimer_file(filename: str) -> Optional[pd.DataFrame]:
                 dim_line_matches = [j for j, line in enumerate(lines)
                                     if line.startswith(dim_id)]
                 if not dim_line_matches:
-                    print(colored(f"==> Expected dimer {dim_id} \
-not found in {filename}", "yellow"))
+                    logger.warning(f"==> Expected dimer {dim_id} \
+not found in {filename}")
                     continue
                 dim_line = dim_line_matches[0]
                 dim_fp = lines[dim_line].split(" ")[2].strip()
@@ -406,18 +435,23 @@ not found in {filename}", "yellow"))
             else:
                 return pd.DataFrame()
         else:
-            print(colored("==> No primer pairs were found to form \
-dimers (within the limit specified)", "yellow"))
+            logger.warning("==> No primer pairs were found to form \
+dimers (within the limit specified)")
             return pd.DataFrame()
     except Exception as e:
-        print(colored(f"==> Error parsing file {filename}: {str(e)}",
-                      "red"))
+        logger.error(f"==> Error parsing file {filename}: {str(e)}")
         return pd.DataFrame()
 
 if __name__ == '__main__':
-    
+
     args = parse_args()
-    
+
+    # Setup logging
+    log_file = None
+    if args.output_dir:
+        log_file = f"{args.output_dir}/phagpcr.log"
+    setup_logging(verbose=args.verbose, log_file=log_file)
+
     fasta_file = args.fasta_file
     output_dir = args.output_dir
     blast_db = args.blast_db
@@ -439,13 +473,13 @@ if __name__ == '__main__':
     
     # Read fasta_file in
     sequences = readfile(fasta_file)
-    print("Number of sequences submitted: ",len(sequences), "\n")
+    logger.info(f"Number of sequences submitted: {len(sequences)}\n")
     
     # Primer selection and testing for runtype 1 and 2
     if runtype == 1 or runtype == 2:
-        print("--------------------------------------------------------")
-        print("Step 1 - select all primers against target using Primer3")
-        print("--------------------------------------------------------")
+        logger.info("=" * 60)
+        logger.info("select all primers against target using Primer3")
+        logger.info("=" * 60)
         primers=[]
         for header, seq in sequences.items():
             primer3_params = update_primer3(tm, primer_size, primer_nb, kit)
@@ -454,19 +488,21 @@ if __name__ == '__main__':
         
         # create prefiltered primers file
         prefiltered_primers_df.to_csv(output_dir + '/prefiltered_primers_file.csv', index=False, sep ='\t')
-        print(colored('\nPrefiltered primers stored in: ', "yellow"), output_dir + '/prefiltered_primers_file.csv')
-        
+        logger.info(f'Prefiltered primers stored in: '
+                    f'{output_dir}/prefiltered_primers_file.csv')
+
         # create multifasta file with all predicted priners
         df_to_fasta(prefiltered_primers_df, output_dir, 'prefiltered_primers')
-        print(colored('Prefiltered primers in fasta format stored in: ', "yellow"), output_dir + '/prefiltered_primers.fna')
+        logger.info(f'Prefiltered primers in fasta format stored in: '
+                    f'{output_dir}/prefiltered_primers.fna')
  
-        print("\n--------------------------------------------------------")               
-        print("Step 2 - test specificity of primers using MFEprimer against custom database")
-        print("--------------------------------------------------------")
+        logger.info("\n--------------------------------------------------------")               
+        logger.info("test specificity of primers using MFEprimer against custom database")
+        logger.info("=" * 60)
         if blast_db != None:
             ## by default, mfeprimer_index will check if the indexing has already been performed before proceeding
             run_mfe_index(blast_db)
-            print(colored("Screening for all features and specificity against Blast database: ", "blue") + str(blast_db) + "\n")
+            logger.info(f"Screening for all features and specificity against Blast database: {str(blast_db}") + "\n")
             # run_mfe(output_dir + '/prefiltered_primers.fna',blast_db,output_dir,'blastdb', tm_spec)
             # testing running MFE on separate fasta files         
             grouped = prefiltered_primers_df.groupby('left_primer_name')
@@ -484,15 +520,15 @@ if __name__ == '__main__':
                 if 'Fp' in df_local_screening.columns:
                     print(df_local_screening.groupby(df_local_screening['Fp'].str[:-1])['Max_hit_per_pair'].unique())
                 else:
-                    print(colored("==> No 'Fp' column found in screening results", "yellow"))
+                    logger.warning("==> No 'Fp' column found in screening results")
             else:
-                print(colored("==> No screening results to save. DataFrame is empty.", "yellow"))
+                logger.warning("==> No screening results to save. DataFrame is empty.")
         else:
-            print(colored("No Blast database provided", "yellow"))
+            logger.warning("No Blast database provided")
             
-        print("\n--------------------------------------------------------")               
-        print("Step 3 - test specificity of primers using MFEprimer against human genome")
-        print("--------------------------------------------------------")    
+        logger.info("\n--------------------------------------------------------")               
+        logger.info("test specificity of primers using MFEprimer against human genome")
+        logger.info("=" * 60)    
         if human_genome:
             # Run MFEprimer specificity against human genome
             run_mfe_spec(output_dir + '/prefiltered_primers.fna',
@@ -503,12 +539,12 @@ if __name__ == '__main__':
                 df_human_spec.to_csv(output_dir + '/mfe_spec_results_hg38_summary.csv', sep='\t', index=False)
                 print(df_human_spec)
         else:
-            print(colored("No Human Genome screening required", "yellow"))
+            logger.warning("No Human Genome screening required")
  
         if runtype == 2:
-            print("\n--------------------------------------------------------")               
-            print("Step 4 - test primer compatibility for multiplex and cocktail detection")
-            print("--------------------------------------------------------")               
+            logger.info("\n--------------------------------------------------------")               
+            logger.info("test primer compatibility for multiplex and cocktail detection")
+            logger.info("=" * 60)               
             # run MFEprimer dimers on combined file 
             run_mfe_dimers(output_dir + '/prefiltered_primers.fna', output_dir, 'prefiltered_primers')
             df_cocktail_dimers = parse_MFEprimers_dimer_file(output_dir + '/mfe_dimer_results_prefiltered_primers.txt')
@@ -516,9 +552,9 @@ if __name__ == '__main__':
                 df_cocktail_dimers.to_csv(output_dir + '/mfe_dimer_results_prefiltered_primers_summary.csv', sep='\t', index=False)
                 print(df_cocktail_dimers)
            
-        print("\n--------------------------------------------------------")
-        print("Final step - summarising all results")
-        print("--------------------------------------------------------")       
+        logger.info("\n--------------------------------------------------------")
+        logger.info("summarising all results")
+        logger.info("=" * 60)       
     
     # Type 3: unsupervised design providing phage genome
     elif runtype == 3:
@@ -531,5 +567,5 @@ if __name__ == '__main__':
             # if present
             #   polymerase = ...
             #   get_primers(header_polymerase, seq_polymerase, primer3_params)           
-        print("new feature to come")
+        logger.info("new feature to come")
         
