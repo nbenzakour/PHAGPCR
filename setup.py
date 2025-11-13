@@ -49,7 +49,7 @@ setup(
     install_requires=requirements,
     entry_points={
         'console_scripts': [
-            'phagpcr=phagpcr:main',
+            'phagpcr=phagpcr_package.main:main',
             'bz-gene-extractor=bz_gene_extractor:main',
         ],
     },
