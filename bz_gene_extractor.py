@@ -9,8 +9,8 @@
 
 import argparse
 import os
+
 from Bio import SeqIO
-import os
 
 def extract_gene_sequence(input_file, word, outdir, skip):
     # Create the output directory if it does not exist
