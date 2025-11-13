@@ -20,9 +20,10 @@ def parse_args():
     parser.add_argument('-b', '--blast_db', 
                         type=str, default="~/REPOS/PHAGPCR/test/phiau_all_phages_20230418_nr.fna", required=False, 
                         help='BLAST database for searching the primers (optional)')
-    parser.add_argument('-hg', '--human_genome', 
-                        type=bool, default=False, required=False, 
-                        help='Screen the primers against the human genome - version hg38 (True or False)(optional)')
+    parser.add_argument('-hg', '--human_genome',
+                        action='store_true',
+                        help='Screen the primers against the human genome - \
+version hg38 (optional)')
     parser.add_argument('-s', '--sequences_dir', 
                         type=str, default=None, required=False, 
                         help='Directory containing sequences for screening against the primers (optional)')
@@ -358,7 +359,7 @@ if __name__ == '__main__':
         print("\n--------------------------------------------------------")               
         print("Step 3 - test specificity of primers using MFEprimer against human genome")
         print("--------------------------------------------------------")    
-        if human_genome == True:
+        if human_genome:
             # run MFEprimer specificity on combined file against human genome
             run_mfe_spec(output_dir + '/prefiltered_primers.fna','/data/db/blastdb/hg38/GCA_000001405.29_GRCh38.p14_genomic.fna',output_dir,'hg38', tm_spec)
             df_human_spec = parse_MFEprimers_file(output_dir + '/mfe_spec_results_hg38.txt')
