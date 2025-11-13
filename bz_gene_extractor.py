@@ -15,13 +15,16 @@ Usage:
 Author: Nouri L. Ben Zakour
 Version: 0.2
 Date: 2024-02-16
+Updated: 2025-11-13
 """
 import argparse
 import os
+from typing import Optional
 
 from Bio import SeqIO
 
-def extract_gene_sequence(input_file, word, outdir, skip):
+def extract_gene_sequence(input_file: str, word: str,
+                          outdir: str, skip: int) -> bool:
     """
     Extract gene sequences from GenBank file based on product qualifier.
 
