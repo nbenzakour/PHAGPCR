@@ -24,75 +24,90 @@ from Bio import SeqIO
 from termcolor import colored
 
 def parse_args():
-    parser = ArgumentParser(description='Design primers using Primer3 and perform BLAST search on the designed primers')
+    """Parse command line arguments."""
+    parser = ArgumentParser(
+        description='Design primers using Primer3 and perform \
+specificity screening')
     parser.add_argument('-f', '--fasta_file', 
                         type=str, 
                         help='Path to the input FASTA file')
     parser.add_argument('-o', '--output_dir', 
                         type=str, 
                         help='Directory where the results will be saved')
-    parser.add_argument('-b', '--blast_db', 
-                        type=str, default="~/REPOS/PHAGPCR/test/phiau_all_phages_20230418_nr.fna", required=False, 
-                        help='BLAST database for searching the primers (optional)')
+    parser.add_argument('-b', '--blast_db',
+                        type=str,
+                        default="~/REPOS/PHAGPCR/test/\
+phiau_all_phages_20230418_nr.fna",
+                        required=False,
+                        help='BLAST database for primer screening \
+(optional)')
     parser.add_argument('-hg', '--human_genome',
                         action='store_true',
                         help='Screen the primers against the human genome - \
 version hg38 (optional)')
-    parser.add_argument('-s', '--sequences_dir', 
-                        type=str, default=None, required=False, 
-                        help='Directory containing sequences for screening against the primers (optional)')
-    parser.add_argument('-r', '--runtype', 
-                        type=int, default=1, choices=[1, 2, 3], 
-                        help='Run type for primer design: 1 = supervised design providing target, 2 = cocktail detection with multiplex primers, 3 = unsupervised design providing phage genome')
-    parser.add_argument('-nb', '--primer_nb', 
-                        type=int, default=1, required=False, 
-                        help='Nb of primer pairs to design per target sequence')
+    parser.add_argument('-s', '--sequences_dir',
+                        type=str, default=None, required=False,
+                        help='Directory with sequences for screening \
+(optional)')
+    parser.add_argument('-r', '--runtype',
+                        type=int, default=1, choices=[1, 2, 3],
+                        help='Run type: 1=supervised, \
+2=multiplex/cocktail, 3=unsupervised')
+    parser.add_argument('-nb', '--primer_nb',
+                        type=int, default=1, required=False,
+                        help='Number of primer pairs per target sequence')
     parser.add_argument('-tm', '--tm_optimal', 
                         type=int, default=60, required=False, 
                         help='Optimal Tm for primers')
     parser.add_argument('-sz', '--size_optimal', 
                         type=int, default=20, required=False, 
                         help='Optimal size for primers')
-    parser.add_argument('-k', '--kit', 
-                        type=str, default="", choices=["Quantinova", "Invitrogen"], required=False, 
-                        help='qPCR kit used to inform Tm specification')
-    parser.add_argument('-tm2', '--tm_specificity', 
-                        type=int, default=40, required=False, 
-                        help='Minimum Tm to report primers-template matches screened with MFEprimer')
+    parser.add_argument('-k', '--kit',
+                        type=str, default="",
+                        choices=["Quantinova", "Invitrogen"],
+                        required=False,
+                        help='qPCR kit for Tm specification')
+    parser.add_argument('-tm2', '--tm_specificity',
+                        type=int, default=40, required=False,
+                        help='Minimum Tm for MFEprimer matches')
     return parser.parse_args()
 
 def update_primer3(tm, primer_size, primer_nb, kit):
+    """Configure Primer3 parameters for primer design."""
     primer3_params = {
         # Basic parameters
-        'PRIMER_OPT_SIZE' : primer_size, 
-        'PRIMER_MIN_SIZE' : 18,
-        'PRIMER_MAX_SIZE' : 23,
-        'PRIMER_PICK_INTERNAL_OLIGO' : 0,
-        'PRIMER_OPT_TM' : float(tm),
-        'PRIMER_MIN_TM' : 59.0,
-        'PRIMER_MAX_TM' : 63.0,
-        'PRIMER_PAIR_MAX_DIFF_TM' : 100.0,
-        'PRIMER_MIN_GC' : 40.0, 
-        'PRIMER_MAX_GC' : 60.0,
-        # Product
-        'PRIMER_PRODUCT_SIZE_RANGE' : [[100,150],[150,175],[175,200],[200,225],[225,250],[250,275],[275,300]],
-        'PRIMER_PRODUCT_OPT_SIZE' : 150,
+        'PRIMER_OPT_SIZE': primer_size,
+        'PRIMER_MIN_SIZE': 18,
+        'PRIMER_MAX_SIZE': 23,
+        'PRIMER_PICK_INTERNAL_OLIGO': 0,
+        'PRIMER_OPT_TM': float(tm),
+        'PRIMER_MIN_TM': 59.0,
+        'PRIMER_MAX_TM': 63.0,
+        'PRIMER_PAIR_MAX_DIFF_TM': 100.0,
+        'PRIMER_MIN_GC': 40.0,
+        'PRIMER_MAX_GC': 60.0,
+        # Product size ranges
+        'PRIMER_PRODUCT_SIZE_RANGE': [
+            [100, 150], [150, 175], [175, 200], [200, 225],
+            [225, 250], [250, 275], [275, 300]
+        ],
+        'PRIMER_PRODUCT_OPT_SIZE': 150,
         # Advanced metrics
-        'PRIMER_TM_FORMULA' : 1,    # SantaLucia 1988
-        'PRIMER_SALT_MONOVALENT' : 50.0,
-        'PRIMER_SALT_CORRECTIONS' : 1,   # SantaLucia 1988
-        'PRIMER_DNA_CONC' : 50.0,
-        'PRIMER_MAX_POLY_X' : 4,
-        'PRIMER_INTERNAL_MAX_POLY_X' : 4,
-        'PRIMER_MAX_NS_ACCEPTED' : 0,
+        'PRIMER_TM_FORMULA': 1,    # SantaLucia 1988
+        'PRIMER_SALT_MONOVALENT': 50.0,
+        'PRIMER_SALT_CORRECTIONS': 1,   # SantaLucia 1988
+        'PRIMER_DNA_CONC': 50.0,
+        'PRIMER_MAX_POLY_X': 4,
+        'PRIMER_INTERNAL_MAX_POLY_X': 4,
+        'PRIMER_MAX_NS_ACCEPTED': 0,
         # Complementarity
-        'PRIMER_MAX_SELF_ANY' : 8.00,
-        'PRIMER_MAX_SELF_END' : 3.00,
-        'PRIMER_MAX_END_STABILITY' : 9.0,
-        'PRIMER_PAIR_MAX_COMPL_ANY' : 12,
-        'PRIMER_PAIR_MAX_COMPL_END' : 8,
+        'PRIMER_MAX_SELF_ANY': 8.00,
+        'PRIMER_MAX_SELF_END': 3.00,
+        'PRIMER_MAX_END_STABILITY': 9.0,
+        'PRIMER_PAIR_MAX_COMPL_ANY': 12,
+        'PRIMER_PAIR_MAX_COMPL_END': 8,
         # Output
-        'PRIMER_NUM_RETURN' : primer_nb,
+        'PRIMER_NUM_RETURN': primer_nb,
     }
     return primer3_params
 
@@ -109,12 +124,13 @@ def testing(args):
 {args.fasta_file}')
 
 def mkdir_outdir(output_dir):
-    # Creating the output directory if not present
-    print(colored('1. Creating output directory:', "blue"), output_dir), 
+    """Create output directory if it doesn't exist."""
+    print(colored('1. Creating output directory:', "blue"), output_dir),
     if not os.path.exists('{}'.format(output_dir)):
         os.makedirs('{}'.format(output_dir))
     else:
-        print(colored('==> Output directory already exists. Carrying on...\n',"yellow"))
+        print(colored('==> Output directory already exists. \
+Carrying on...\n', "yellow"))
 
 def readfile(fasta_file):
     """Read FASTA file into a dictionary of sequences."""
@@ -143,67 +159,96 @@ def readfile(fasta_file):
         raise IOError(f"Error reading file {fasta_file}: {str(e)}")    
 
 def get_primers(header, seq, primer3_params):
+    """Design primers for given sequence using Primer3."""
     print(colored("Designing primers for ", "blue"), header)
-    # if sequence is equal or greater to 500 bp, define a subregion to design primers (=minimum 200bp) 
+    # For sequences >=500bp, define subregion (minimum 200bp) 
     if len(seq) >= 500:
         start = 150
         region_length = len(seq) - (start*2)
-    # sequence is too short to define a subregion, use full sequence instead
+    # Sequence too short for subregion, use full sequence
     else:
         start = 0
         region_length = len(seq)
-        
+
     primers = []
     # Set the Primer3 sequence arguments
     primer3_input = {
         'SEQUENCE_ID': header,
         'SEQUENCE_TEMPLATE': seq,
-        'SEQUENCE_INCLUDED_REGION' : [start,region_length],
+        'SEQUENCE_INCLUDED_REGION': [start, region_length],
     }
-    
-    # Run the Primer3 design process - return a dictionary of primer results
-    primer_results = primer3.bindings.designPrimers(primer3_input, primer3_params)
+
+    # Run Primer3 design - returns dictionary of primer results
+    primer_results = primer3.bindings.designPrimers(
+        primer3_input, primer3_params)
     return primer_results
 
 def parse_primers(primer_results, header):
+    """Parse Primer3 results into a structured DataFrame."""
     target_name = header[:55].split(" ")[0].strip()
-    # Parse the primers
     primers = []
     i = 0
-    while i < primer_results['PRIMER_PAIR_NUM_RETURNED']:       
-        primers.append({'header': header, 
-                        'left_primer_name': target_name + "_" + str(i) + "F",
-                        'left_primer_sequence': primer_results['PRIMER_LEFT_' + str(i) + '_SEQUENCE'], 
-                        'right_primer_name': target_name + "_" + str(i) + "R", 
-                        'right_primer_sequence': primer_results['PRIMER_RIGHT_' + str(i) + '_SEQUENCE'],
-                        'left position': primer_results['PRIMER_LEFT_' + str(i)], 
-                        'right position': primer_results['PRIMER_RIGHT_' + str(i)], 
-                        'product size': primer_results['PRIMER_PAIR_' + str(i) + '_PRODUCT_SIZE'],
-                        'left_Tm' : primer_results['PRIMER_LEFT_' + str(i) + '_TM'],
-                        'right_Tm' : primer_results['PRIMER_RIGHT_' + str(i) + '_TM'],
-                        'left_GC' : primer_results['PRIMER_LEFT_' + str(i) + '_GC_PERCENT'],
-                        'right_GC' : primer_results['PRIMER_RIGHT_' + str(i) + '_GC_PERCENT'],
-                        'left_SELF_ANY_TH' : primer_results['PRIMER_LEFT_' + str(i) + '_SELF_ANY_TH'],
-                        'right_SELF_ANY_TH' : primer_results['PRIMER_RIGHT_' + str(i) + '_SELF_ANY_TH'],
-                        'left_SELF_END_TH' : primer_results['PRIMER_LEFT_' + str(i) + '_SELF_END_TH'],
-                        'right_SELF_END_TH' : primer_results['PRIMER_RIGHT_' + str(i) + '_SELF_END_TH'],
-                        'left_HAIRPIN_TH' : primer_results['PRIMER_LEFT_' + str(i) + '_HAIRPIN_TH'],
-                        'right_HAIRPIN_TH' : primer_results['PRIMER_RIGHT_' + str(i) + '_HAIRPIN_TH'],
-                        'left_END_STABILITY' : primer_results['PRIMER_LEFT_' + str(i) + '_END_STABILITY'],
-                        'right_END_STABILITY' : primer_results['PRIMER_RIGHT_' + str(i) + '_END_STABILITY'],
-                        'left_PENALTY' : primer_results['PRIMER_LEFT_' + str(i) + '_PENALTY'],
-                        'right_PENALTY' : primer_results['PRIMER_RIGHT_' + str(i) + '_PENALTY'],
-                        'pair_PENALTY' : primer_results['PRIMER_PAIR_' + str(i) + '_PENALTY'],
-                        'pair_COMPL_ANY_TH' : primer_results['PRIMER_PAIR_' + str(i) + '_COMPL_ANY_TH'],
-                        'pair_COMPL_END_TH' : primer_results['PRIMER_PAIR_' + str(i) + '_COMPL_END_TH'],})
-        i = i+1
+    num_returned = primer_results['PRIMER_PAIR_NUM_RETURNED']
+    while i < num_returned:
+        left_key = f'PRIMER_LEFT_{i}'
+        right_key = f'PRIMER_RIGHT_{i}'
+        pair_key = f'PRIMER_PAIR_{i}'
+
+        primers.append({
+            'header': header,
+            'left_primer_name': f"{target_name}_{i}F",
+            'left_primer_sequence': primer_results[f'{left_key}_SEQUENCE'],
+            'right_primer_name': f"{target_name}_{i}R",
+            'right_primer_sequence':
+                primer_results[f'{right_key}_SEQUENCE'],
+            'left position': primer_results[left_key],
+            'right position': primer_results[right_key],
+            'product size': primer_results[f'{pair_key}_PRODUCT_SIZE'],
+            'left_Tm': primer_results[f'{left_key}_TM'],
+            'right_Tm': primer_results[f'{right_key}_TM'],
+            'left_GC': primer_results[f'{left_key}_GC_PERCENT'],
+            'right_GC': primer_results[f'{right_key}_GC_PERCENT'],
+            'left_SELF_ANY_TH':
+                primer_results[f'{left_key}_SELF_ANY_TH'],
+            'right_SELF_ANY_TH':
+                primer_results[f'{right_key}_SELF_ANY_TH'],
+            'left_SELF_END_TH':
+                primer_results[f'{left_key}_SELF_END_TH'],
+            'right_SELF_END_TH':
+                primer_results[f'{right_key}_SELF_END_TH'],
+            'left_HAIRPIN_TH': primer_results[f'{left_key}_HAIRPIN_TH'],
+            'right_HAIRPIN_TH':
+                primer_results[f'{right_key}_HAIRPIN_TH'],
+            'left_END_STABILITY':
+                primer_results[f'{left_key}_END_STABILITY'],
+            'right_END_STABILITY':
+                primer_results[f'{right_key}_END_STABILITY'],
+            'left_PENALTY': primer_results[f'{left_key}_PENALTY'],
+            'right_PENALTY': primer_results[f'{right_key}_PENALTY'],
+            'pair_PENALTY': primer_results[f'{pair_key}_PENALTY'],
+            'pair_COMPL_ANY_TH':
+                primer_results[f'{pair_key}_COMPL_ANY_TH'],
+            'pair_COMPL_END_TH':
+                primer_results[f'{pair_key}_COMPL_END_TH'],
+        })
+        i += 1
     primers_df = pd.DataFrame(primers)
     primers_df = primers_df.round(2)
-    return(primers_df)
+    return primers_df
         
 def df_to_fasta(df, output_dir, output_fasta):
-    records = [SeqRecord(Seq(row['left_primer_sequence']), id=row['left_primer_name'], description="") for index, row in df.iterrows()] + \
-              [SeqRecord(Seq(row['right_primer_sequence']), id=row['right_primer_name'], description="") for index, row in df.iterrows()]
+    """Convert DataFrame of primers to FASTA format."""
+    left_records = [
+        SeqRecord(Seq(row['left_primer_sequence']),
+                  id=row['left_primer_name'], description="")
+        for index, row in df.iterrows()
+    ]
+    right_records = [
+        SeqRecord(Seq(row['right_primer_sequence']),
+                  id=row['right_primer_name'], description="")
+        for index, row in df.iterrows()
+    ]
+    records = left_records + right_records
     with open(f"{output_dir}/{output_fasta}.fna", "w") as handle:
         SeqIO.write(records, handle, 'fasta')
 
