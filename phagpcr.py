@@ -44,8 +44,8 @@ specificity screening')
                         help='Directory where the results will be saved')
     parser.add_argument('-b', '--blast_db',
                         type=str,
-                        default="~/REPOS/PHAGPCR/test/\
-phiau_all_phages_20230418_nr.fna",
+                        default="data/blastdb/\
+meta_ILL_ONT_20250521_combined.fna",
                         required=False,
                         help='BLAST database for primer screening \
 (optional)')
