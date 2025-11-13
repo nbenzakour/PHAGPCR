@@ -23,6 +23,13 @@ from Bio.SeqRecord import SeqRecord
 from Bio import SeqIO
 from termcolor import colored
 
+# Module constants
+SEQUENCE_SUBREGION_MARGIN = 150  # bp to exclude from each end
+MIN_SEQUENCE_FOR_SUBREGION = 500  # bp minimum for subregion design
+TARGET_NAME_MAX_LENGTH = 55  # characters
+DEFAULT_HG38_PATH = '/data/db/blastdb/hg38/\
+GCA_000001405.29_GRCh38.p14_genomic.fna'
+
 def parse_args():
     """Parse command line arguments."""
     parser = ArgumentParser(
@@ -161,10 +168,10 @@ def readfile(fasta_file):
 def get_primers(header, seq, primer3_params):
     """Design primers for given sequence using Primer3."""
     print(colored("Designing primers for ", "blue"), header)
-    # For sequences >=500bp, define subregion (minimum 200bp) 
-    if len(seq) >= 500:
-        start = 150
-        region_length = len(seq) - (start*2)
+    # For long sequences, define subregion to avoid terminal regions
+    if len(seq) >= MIN_SEQUENCE_FOR_SUBREGION:
+        start = SEQUENCE_SUBREGION_MARGIN
+        region_length = len(seq) - (start * 2)
     # Sequence too short for subregion, use full sequence
     else:
         start = 0
@@ -185,7 +192,7 @@ def get_primers(header, seq, primer3_params):
 
 def parse_primers(primer_results, header):
     """Parse Primer3 results into a structured DataFrame."""
-    target_name = header[:55].split(" ")[0].strip()
+    target_name = header[:TARGET_NAME_MAX_LENGTH].split(" ")[0].strip()
     primers = []
     i = 0
     num_returned = primer_results['PRIMER_PAIR_NUM_RETURNED']
@@ -481,8 +488,9 @@ if __name__ == '__main__':
         print("Step 3 - test specificity of primers using MFEprimer against human genome")
         print("--------------------------------------------------------")    
         if human_genome:
-            # run MFEprimer specificity on combined file against human genome
-            run_mfe_spec(output_dir + '/prefiltered_primers.fna','/data/db/blastdb/hg38/GCA_000001405.29_GRCh38.p14_genomic.fna',output_dir,'hg38', tm_spec)
+            # Run MFEprimer specificity against human genome
+            run_mfe_spec(output_dir + '/prefiltered_primers.fna',
+                         DEFAULT_HG38_PATH, output_dir, 'hg38', tm_spec)
             df_human_spec = parse_MFEprimers_file(output_dir + '/mfe_spec_results_hg38.txt')
             if df_human_spec is not None and not df_human_spec.empty:
                 df_human_spec = df_human_spec.drop(['Unique_hit', 'Max_hit_per_pair'], axis=1)
