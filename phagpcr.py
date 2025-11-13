@@ -29,6 +29,7 @@ MIN_SEQUENCE_FOR_SUBREGION = 500  # bp minimum for subregion design
 TARGET_NAME_MAX_LENGTH = 55  # characters
 DEFAULT_HG38_PATH = '/data/db/blastdb/hg38/\
 GCA_000001405.29_GRCh38.p14_genomic.fna'
+MFEPRIMER_BIN = 'bin/mfeprimer'  # Path to mfeprimer executable
 
 def parse_args():
     """Parse command line arguments."""
@@ -261,7 +262,7 @@ def df_to_fasta(df, output_dir, output_fasta):
 
 def run_mfe_index(db):
     """Index database for MFEprimer analysis."""
-    subprocess.run(['mfeprimer', 'index', '-i', db], check=True)
+    subprocess.run([MFEPRIMER_BIN, 'index', '-i', db], check=True)
 
 def run_mfe(primers, db, output_dir, suffix, tm_spec):
     """Run MFEprimer full analysis on primers against database."""
@@ -269,7 +270,7 @@ def run_mfe(primers, db, output_dir, suffix, tm_spec):
           primers + " ...")
     output_file = f"{output_dir}/mfe_results_{suffix}.txt"
     subprocess.run([
-        'mfeprimer', '-i', primers, '-d', db, '-o', output_file,
+        MFEPRIMER_BIN, '-i', primers, '-d', db, '-o', output_file,
         '-S', '500', '-t', str(tm_spec), '--misMatch', '1',
         '--misStart', '2', '--misEnd', '9'
     ], check=True)
@@ -280,7 +281,7 @@ def run_mfe_dimers(primers, output_dir, suffix):
     print(colored("Running MFEprimer dimers...\n", "blue"))
     output_file = f"{output_dir}/mfe_dimer_results_{suffix}.txt"
     subprocess.run([
-        'mfeprimer', 'dimer', '-i', primers,
+        MFEPRIMER_BIN, 'dimer', '-i', primers,
         '--dg', '-10', '-o', output_file
     ], check=True)
 
@@ -291,7 +292,7 @@ def run_mfe_spec(primers, db, output_dir, suffix, tm_spec):
     print(colored("Running MFEprimer specificity...\n", "blue"))
     output_file = f"{output_dir}/mfe_spec_results_{suffix}.txt"
     subprocess.run([
-        'mfeprimer', 'spec', '-i', primers, '-d', db,
+        MFEPRIMER_BIN, 'spec', '-i', primers, '-d', db,
         '-o', output_file, '-S', '500', '-t', str(tm_spec)
     ], check=True)   
 
