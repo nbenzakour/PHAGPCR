@@ -83,9 +83,16 @@ def update_primer3(tm, primer_size, primer_nb, kit):
     return primer3_params
 
 def testing(args):
+    """Validate input arguments."""
     # verify fasta file exists
     if not os.path.isfile(args.fasta_file):
-        raise Exception('Fasta file was not found')
+        raise FileNotFoundError(f'Fasta file not found: \
+{args.fasta_file}')
+
+    # verify fasta file is readable
+    if not os.access(args.fasta_file, os.R_OK):
+        raise PermissionError(f'Cannot read fasta file: \
+{args.fasta_file}')
 
 def mkdir_outdir(output_dir):
     # Creating the output directory if not present
@@ -96,22 +103,30 @@ def mkdir_outdir(output_dir):
         print(colored('==> Output directory already exists. Carrying on...\n',"yellow"))
 
 def readfile(fasta_file):
-    # Read the FASTA file into a dictionary
+    """Read FASTA file into a dictionary of sequences."""
     print(colored("2. Reading data in from ", "blue"), fasta_file)
     sequences = {}
-    with open(fasta_file, 'r') as f:
-        current_seq = []
-        current_header = ''
-        for line in f:
-            if line.startswith('>'):
-                if current_header:
-                    sequences[current_header] = ''.join(current_seq)
-                current_header = line[1:].strip().replace(" ", "_")
-                current_seq = []
-            else:
-                current_seq.append(line.strip())
-        sequences[current_header] = ''.join(current_seq)
-    return sequences    
+    try:
+        with open(fasta_file, 'r') as f:
+            current_seq = []
+            current_header = ''
+            for line in f:
+                if line.startswith('>'):
+                    if current_header:
+                        sequences[current_header] = ''.join(current_seq)
+                    current_header = line[1:].strip().replace(" ", "_")
+                    current_seq = []
+                else:
+                    current_seq.append(line.strip())
+            if current_header:
+                sequences[current_header] = ''.join(current_seq)
+
+        if not sequences:
+            raise ValueError(f"No sequences found in {fasta_file}")
+
+        return sequences
+    except IOError as e:
+        raise IOError(f"Error reading file {fasta_file}: {str(e)}")    
 
 def get_primers(header, seq, primer3_params):
     print(colored("Designing primers for ", "blue"), header)
@@ -270,34 +285,62 @@ def parse_MFEprimers_file(filename):
         return pd.DataFrame()
 
 def parse_MFEprimers_dimer_file(filename):
-    # read the file and split it into lines
-    with open(filename) as f:
-        lines = f.read().splitlines()
-    
-    # find the line that indicates the number of potential dimers
-    start_line = [i for i, line in enumerate(lines) if line.startswith("Dimer List ")][0]
+    """Parse MFEprimer dimer output file into DataFrame."""
+    try:
+        with open(filename) as f:
+            lines = f.read().splitlines()
 
-    # count the number of dimers
-    dimer_count = int(lines[start_line].split("(")[1].split(")")[0])
-    
-    if dimer_count >= 1:
-        # extract the details of each dimer
-        dimer_details = []
-        for i in range(dimer_count):
-            dim_id = "Dimer " + str(i+1)
-            dim_line = [j for j, line in enumerate(lines) if line.startswith(dim_id)][0]
-            dim_fp = lines[dim_line].split(" ")[2].strip()
-            dim_rp = lines[dim_line].split(" ")[4].strip()
-            dim_score = lines[dim_line + 2].split(" ")[1].strip(",")
-            dim_Dg = round(float(lines[dim_line + 2].split("=")[1].strip("kcal/mol")), 2)
-            dimer_details.append((dim_id, dim_fp, dim_rp, dim_score, dim_Dg))    
-        # create a Pandas DataFrame with the amplicon details
-        df = pd.DataFrame(dimer_details, columns=["Dimer ID", "Fp", "Rp", "Score", "Dg"])
-        df['Problematic'] = df.apply(lambda x: 'Yes' if x['Fp'].rsplit('_', 1)[0] != x['Rp'].rsplit('_', 1)[0] else 'No', axis=1)
-        #print(df, "\n")
-        return df
-    else:
-        print(colored("==> No primer pairs were found to form dimers (within the limit specified)", "yellow"))
+        # find the line that indicates the number of potential dimers
+        start_line_matches = [i for i, line in enumerate(lines)
+                              if line.startswith("Dimer List ")]
+        if not start_line_matches:
+            print(colored(f"==> Unexpected file format in {filename}: \
+'Dimer List' line not found", "yellow"))
+            return pd.DataFrame()
+
+        start_line = start_line_matches[0]
+
+        # count the number of dimers
+        dimer_count = int(lines[start_line].split("(")[1].split(")")[0])
+
+        if dimer_count >= 1:
+            # extract the details of each dimer
+            dimer_details = []
+            for i in range(dimer_count):
+                dim_id = "Dimer " + str(i+1)
+                dim_line_matches = [j for j, line in enumerate(lines)
+                                    if line.startswith(dim_id)]
+                if not dim_line_matches:
+                    print(colored(f"==> Expected dimer {dim_id} \
+not found in {filename}", "yellow"))
+                    continue
+                dim_line = dim_line_matches[0]
+                dim_fp = lines[dim_line].split(" ")[2].strip()
+                dim_rp = lines[dim_line].split(" ")[4].strip()
+                dim_score = lines[dim_line + 2].split(" ")[1].strip(",")
+                dim_Dg = round(float(lines[dim_line + 2].split("=")[1]
+                                     .strip("kcal/mol")), 2)
+                dimer_details.append((dim_id, dim_fp, dim_rp,
+                                      dim_score, dim_Dg))
+
+            if dimer_details:
+                df = pd.DataFrame(dimer_details,
+                                  columns=["Dimer ID", "Fp", "Rp",
+                                           "Score", "Dg"])
+                df['Problematic'] = df.apply(
+                    lambda x: 'Yes' if x['Fp'].rsplit('_', 1)[0] !=
+                    x['Rp'].rsplit('_', 1)[0] else 'No', axis=1)
+                return df
+            else:
+                return pd.DataFrame()
+        else:
+            print(colored("==> No primer pairs were found to form \
+dimers (within the limit specified)", "yellow"))
+            return pd.DataFrame()
+    except Exception as e:
+        print(colored(f"==> Error parsing file {filename}: {str(e)}",
+                      "red"))
+        return pd.DataFrame()
 
 if __name__ == '__main__':
     
