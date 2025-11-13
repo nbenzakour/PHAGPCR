@@ -1,0 +1,11 @@
+# PHAGPCR Dependencies
+# qPCR primer design and specificity screening for phage detection
+
+# Core dependencies
+biopython>=1.81         # Sequence parsing and manipulation
+pandas>=2.0.0           # Data analysis and manipulation
+primer3-py>=2.0.0       # Primer3 Python bindings for primer design
+termcolor>=2.0.0        # Colored terminal output
+
+# Note: MFEprimer must be installed separately
+# See: https://github.com/quwubin/MFEprimer
