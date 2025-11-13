@@ -1,12 +1,21 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
+"""
+Extract gene sequences from GenBank files based on product qualifier keywords.
 
-#title           :bz_gene_extractor.py
-#description     :This script will extract a gene fasta entry from a genbank file, based on a keyword
-#author          :Nouri L. Ben Zakour
-#date            :20240216
-#version         :0.1
-#=======================================================================================================
+This script searches GenBank annotation files for genes matching specific
+product keywords and extracts their sequences to FASTA files. Useful for
+bulk extraction of specific genes (e.g., primase, polymerase) from phage
+genome annotations.
 
+Usage:
+    python bz_gene_extractor.py -i phage.gb -w "primase" -o output/
+    python bz_gene_extractor.py -d genbank_dir/ -w "DNA polymerase" \
+-w2 "polymerase" -o output/ -sk 200
+
+Author: Nouri L. Ben Zakour
+Version: 0.2
+Date: 2024-02-16
+"""
 import argparse
 import os
 

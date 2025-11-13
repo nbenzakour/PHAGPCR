@@ -1,6 +1,20 @@
+#!/usr/bin/env python3
+"""
+Design and evaluate qPCR primers for phage detection in patient serum.
+
+This pipeline uses Primer3 for primer design and MFEprimer for specificity
+screening against custom databases, human genome, and primer dimer detection.
+Useful for designing primers compatible with multiplex phage detection in
+clinical samples.
+
+Usage:
+    python phagpcr.py -f input.fasta -o results/ -b blast_db.fna -hg
+    python phagpcr.py -f phage.fasta -o output/ -r 2 -nb 5
+"""
 import subprocess
 import os
 import os.path
+
 import pandas as pd
 import primer3
 from argparse import ArgumentParser
