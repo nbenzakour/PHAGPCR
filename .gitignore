@@ -2,4 +2,7 @@ output_*
 test/
 phagpcr/
 phagpcrenv.yaml
-data/targets
+data/blastdb
+.claude
+__pycache__/
+.DS_Store
