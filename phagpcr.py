@@ -179,21 +179,40 @@ def df_to_fasta(df, output_dir, output_fasta):
         SeqIO.write(records, handle, 'fasta')
 
 def run_mfe_index(db):
-    subprocess.call('mfeprimer index -i {}'.format(db), shell=True)
+    """Index database for MFEprimer analysis."""
+    subprocess.run(['mfeprimer', 'index', '-i', db], check=True)
 
 def run_mfe(primers, db, output_dir, suffix, tm_spec):
-    print(colored("Running MFEprimer full analysis for ", "blue") + primers + " ...")
-    subprocess.call(f'mfeprimer -i {primers} -d {db} -o {output_dir}/mfe_results_{suffix}.txt -S 500 -t {tm_spec} --misMatch 1 --misStart 2 --misEnd 9', shell=True)
+    """Run MFEprimer full analysis on primers against database."""
+    print(colored("Running MFEprimer full analysis for ", "blue") +
+          primers + " ...")
+    output_file = f"{output_dir}/mfe_results_{suffix}.txt"
+    subprocess.run([
+        'mfeprimer', '-i', primers, '-d', db, '-o', output_file,
+        '-S', '500', '-t', str(tm_spec), '--misMatch', '1',
+        '--misStart', '2', '--misEnd', '9'
+    ], check=True)
     
 def run_mfe_dimers(primers, output_dir, suffix):
+    """Run MFEprimer dimer analysis to detect primer interactions."""
     print(colored("Screening for dimers.", "blue"))
     print(colored("Running MFEprimer dimers...\n", "blue"))
-    subprocess.call(f'mfeprimer dimer -i {primers} --dg -10 -o {output_dir}/mfe_dimer_results_{suffix}.txt', shell=True)
+    output_file = f"{output_dir}/mfe_dimer_results_{suffix}.txt"
+    subprocess.run([
+        'mfeprimer', 'dimer', '-i', primers,
+        '--dg', '-10', '-o', output_file
+    ], check=True)
 
 def run_mfe_spec(primers, db, output_dir, suffix, tm_spec):
-    print(colored("Screening for specificity against Blast database: ", "blue") + str(db))
+    """Run MFEprimer specificity check against database."""
+    print(colored("Screening for specificity against Blast database: ",
+                  "blue") + str(db))
     print(colored("Running MFEprimer specificity...\n", "blue"))
-    subprocess.call(f'mfeprimer spec -i {primers} -d {db} -o {output_dir}/mfe_spec_results_{suffix}.txt -S 500 -t {tm_spec}', shell=True)   
+    output_file = f"{output_dir}/mfe_spec_results_{suffix}.txt"
+    subprocess.run([
+        'mfeprimer', 'spec', '-i', primers, '-d', db,
+        '-o', output_file, '-S', '500', '-t', str(tm_spec)
+    ], check=True)   
 
 def parse_MFEprimers_file(filename):
     # read the file and split it into lines
